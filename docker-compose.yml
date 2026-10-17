@@ -4,7 +4,7 @@ services:
     container_name: star-house
     restart: unless-stopped
     ports:
-      - "8020:3000"
+      - "8020:8020"
     environment:
       - PASSWORD=123456        # 登录密码,务必修改
       - TZ=Asia/Shanghai
