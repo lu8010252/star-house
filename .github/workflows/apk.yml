@@ -33,12 +33,19 @@ jobs:
         working-directory: app
         run: |
           node -e '
-          const u = process.env.SERVER_URL.replace(/\/+$/, "");
-          require("fs").writeFileSync("capacitor.config.json", JSON.stringify({
+          const fs = require("fs");
+          let raw = process.env.SERVER_URL.trim();
+          if (!/^https?:\/\//i.test(raw)) raw = "https://" + raw;   // 没写协议时自动补 https
+          const url = new URL(raw);
+          const u = url.origin;                                      // 只保留 协议+域名+端口
+          const http = url.protocol === "http:";
+          fs.writeFileSync("capacitor.config.json", JSON.stringify({
             appId: "com.starhouse.app", appName: "星星屋", webDir: "www",
-            server: { url: u, cleartext: u.startsWith("http://"), androidScheme: u.startsWith("http://") ? "http" : "https" },
+            server: { url: u, cleartext: http, androidScheme: http ? "http" : "https", allowNavigation: [url.host], errorPath: "error.html" },
             android: { allowMixedContent: true }
-          }, null, 2));'
+          }, null, 2));
+          fs.writeFileSync("www/error.html", fs.readFileSync("www/error.html", "utf8").replace(/__SERVER_URL__/g, u));
+          console.log("APK 将加载:", u);'
 
       - name: 创建 Android 工程
         working-directory: app
