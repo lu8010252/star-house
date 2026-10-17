@@ -52,7 +52,7 @@
 /* 底部导航 */
 #nav { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom) + 12px); width: calc(100% - 28px); max-width: 532px; display: flex; background: rgba(255,255,255,.96); border-radius: 30px; padding: 8px; box-shadow: 0 8px 28px rgba(111,79,224,.22); z-index: 10; }
 #nav button { flex: 1; background: none; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0; border-radius: 22px; font-size: 12px; color: var(--ink2); font-weight: 700; }
-#nav button .ic { font-size: 22px; filter: grayscale(.7); } #nav button.on { background: var(--pink-l); color: var(--pink-d); } #nav button.on .ic { filter: none; }
+#nav button { justify-content: center; } #nav button .ic { height: 26px; display: grid; place-items: center; } #nav button svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; } #nav button.on { background: var(--pink-l); color: var(--pink-d); }
 
 /* 弹窗 */
 #modal:empty { display: none; }

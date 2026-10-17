@@ -1,7 +1,8 @@
 // 星星屋 · 手机前台
 const S = { children: [], rules: [], shop: [], settings: {}, checkins: [], today: '', cid: +store.get('xt_cid') || 0, tab: store.get('xt_tab') || 'score' };
 const F = { task: '', minutes: 30, endAt: 0, running: false }; // 专注状态
-const TABS = [['score', '🏅', '赏罚'], ['study', '📚', '学习'], ['focus', '⏱', '专注'], ['shop', '🎁', '商城'], ['me', '🧸', '我的']];
+const NAVI = {"score": "<svg viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"8\" r=\"6\"/><path d=\"M15.5 13.5 17 22l-5-3-5 3 1.5-8.5\"/></svg>", "study": "<svg viewBox=\"0 0 24 24\"><path d=\"M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z\"/><path d=\"M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z\"/></svg>", "focus": "<svg viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"13\" r=\"8\"/><path d=\"M12 9v4l2.5 2.5M9 2h6\"/></svg>", "shop": "<svg viewBox=\"0 0 24 24\"><rect x=\"3\" y=\"8\" width=\"18\" height=\"4\" rx=\"1\"/><path d=\"M12 8v13M19 12v9H5v-9M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5\"/></svg>", "me": "<svg viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"8\" r=\"4\"/><path d=\"M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7\"/></svg>"};
+const TABS = [['score', NAVI.score, '赏罚'], ['study', NAVI.study, '学习'], ['focus', NAVI.focus, '专注'], ['shop', NAVI.shop, '商城'], ['me', NAVI.me, '我的']];
 const HERO = {
   score: ['赏罚分明', '每一次好表现,<br>都值得被看见!', '#ffcf4d', '#fff3c9'],
   shop: ['快乐补给站', '攒积分,<br>换好礼!', '#ff7eb6', '#ffe3f0'],

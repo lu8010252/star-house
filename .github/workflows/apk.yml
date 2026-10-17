@@ -55,6 +55,12 @@ jobs:
           npx cap sync android
           sed -i 's#<application#<uses-permission android:name="android.permission.CAMERA"/>\n    <uses-permission android:name="android.permission.VIBRATE"/>\n    <application#' android/app/src/main/AndroidManifest.xml
 
+      - name: 状态栏/导航栏配色(与页面一致,深色图标)
+        working-directory: app/android/app/src/main/res/values
+        run: |
+          sed -i 's#<item name="android:background">@null</item>#&\n        <item name="android:statusBarColor">\#FFEEF6</item>\n        <item name="android:navigationBarColor">\#FFF7FB</item>\n        <item name="android:windowLightStatusBar">true</item>\n        <item name="android:windowLightNavigationBar">true</item>#' styles.xml
+          cat styles.xml
+
       - name: 构建 APK
         working-directory: app/android
         run: ./gradlew assembleDebug --no-daemon
