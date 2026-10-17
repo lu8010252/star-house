@@ -70,9 +70,28 @@ function render() {
   if (r && r.then) r.then(h => { $('#page').innerHTML = h; }); else $('#page').innerHTML = r;
 }
 
+// 卡片小部件:本周次数 / 连续打卡 / 成绩金星 / 科目表情 / 飘字
+const SUBJ = [['语文', '📖'], ['数学', '🔢'], ['英语', '🔤'], ['科学', '🔬'], ['音乐', '🎵'], ['美术', '🎨'], ['体育', '⚽'], ['书法', '✍️'], ['道德', '⚖️'], ['品德', '⚖️'], ['编程', '💻'], ['钢琴', '🎹'], ['舞蹈', '💃'], ['阅读', '📚']];
+const subjIc = n => (SUBJ.find(([k]) => String(n).includes(k)) || [0, '📚'])[1];
+const isGold = sc => { sc = String(sc || '').trim(); const n = parseFloat(sc); return /^(A\+?|优秀?|满分|100|S)$/i.test(sc) || (!isNaN(n) && /^[\d.]+$/.test(sc) && n >= 90); };
+function streak() {
+  const set = new Set(S.checkins.filter(c => c.childId === S.cid).map(c => c.d)), day = 864e5;
+  const f = t => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  let t = Date.now(), n = 0; if (!set.has(f(t))) t -= day;
+  while (set.has(f(t))) { n++; t -= day; }
+  return n;
+}
+function fly(rect, text, bad) {
+  const el = document.createElement('div'); el.className = 'fly' + (bad ? ' bad' : ''); el.textContent = text;
+  el.style.left = (rect.left + rect.width / 2) + 'px'; el.style.top = (rect.top + rect.height / 2) + 'px';
+  document.body.appendChild(el); setTimeout(() => el.remove(), 1100);
+}
+
 const grpOpen = () => { try { return JSON.parse(store.get('xt_grp') || '{}'); } catch { return {}; } };
 function score() {
-  const card = r => `<button class="card ${r.type}" data-a="rule" data-id="${r.id}"><span class="name">${r.icon ? esc(r.icon) + ' ' : ''}${esc(r.name)}</span><span class="pt">${r.type === 'bad' ? '-' : '+'}${r.points}</span></button>`;
+  const mine = (S.rwk || []).filter(w => w.childId === S.cid);
+  const card = r => { const n = mine.filter(w => w.name === r.name).length, done = mine.some(w => w.name === r.name && w.d === S.today);
+    return `<button class="card ${r.type}" data-a="rule" data-id="${r.id}">${done ? '<i class="dn">✓</i>' : ''}<span class="top"><span class="ico">${r.icon ? esc(r.icon) : (r.type === 'bad' ? '❗' : '⭐')}</span><span class="name">${esc(r.name)}</span></span><span class="foot"><span class="wk ${n ? '' : 'none'}">${n ? '本周 ×' + n : '本周还没有'}</span><span class="pt">${r.type === 'bad' ? '-' : '+'}${r.points}</span></span></button>`; };
   // 已停用的不显示;限定孩子的规则只对对应孩子显示
   const vis = S.rules.filter(r => !r.off && !(r.kids || []).length || (!r.off && r.kids.includes(S.cid)));
   const op = grpOpen();
@@ -97,11 +116,13 @@ function shop() {
     const used = (S.wk || []).filter(w => w.childId === S.cid && w.itemId === i.id).length;
     const out = i.stock != null && i.stock <= 0, lim = i.weekly > 0 && used >= i.weekly;
     const note = out ? '已兑完' : lim ? '本周已兑够' : [i.stock != null ? `剩 ${i.stock} 件` : '', i.weekly > 0 ? `本周还可 ${i.weekly - used} 次` : ''].filter(Boolean).join(' · ');
-    return `<button class="card shop ${out || lim ? 'off' : ''}" data-a="redeem" data-id="${i.id}"><span class="name">${i.icon ? esc(i.icon) + ' ' : ''}${esc(i.name)}${note ? `<small class="nt">${note}</small>` : ''}</span><span class="pt">⭐ ${i.cost}</span></button>`;
+    const pts = cur().points || 0, can = !out && !lim && pts >= i.cost, pct = Math.min(100, Math.max(0, pts / i.cost * 100));
+    return `<button class="card shop ${out || lim ? 'off' : ''} ${can ? 'can' : ''}" data-a="redeem" data-id="${i.id}"><span class="top"><span class="ico">${i.icon ? esc(i.icon) : '🎁'}</span><span class="name">${esc(i.name)}${note ? `<small class="nt">${note}</small>` : ''}</span></span><span class="bar2"><i style="width:${pct}%"></i></span><span class="foot"><span class="wk ${can ? 'ok' : ''}">${out || lim ? '' : can ? '可兑换 ✨' : '🔒 还差 ' + (i.cost - pts) + ' 分'}</span><span class="pt">⭐ ${i.cost}</span></span></button>`;
   };
+  const mk = S.checkins.filter(c => c.childId === S.cid), ckToday = mk.some(c => c.d === S.today), ckMonth = mk.filter(c => c.d.startsWith(S.today.slice(0, 7))).length, st = streak();
   return hero('shop') +
     `<div class="sec">🎀 快乐补给站</div><div class="big">
-      <button class="card shop" data-a="checkin"><span class="em">✅</span><b>每日打卡</b><small>+${s.checkinPoints} 分</small></button></div>` +
+      <button class="card shop" data-a="checkin"><span class="em">${ckToday ? '🎉' : '✅'}</span><b>${ckToday ? '今日已打卡' : '每日打卡'}</b><small>+${s.checkinPoints} 分</small><span class="streak">🔥 连续 ${st} 天 · 本月 ${ckMonth} 天</span></button></div>` +
     `<div class="sec">🛍 积分兑换</div><div class="grid">${S.shop.map(item).join('') || '<div class="empty">家长后台还没添加商品</div>'}</div>`;
 }
 
@@ -138,8 +159,9 @@ async function study() {
   const hue = t => { let h = 0; for (const c of String(t)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
   return hero('study', '<button class="herobtn" data-a="stadd">＋ 记录</button>') +
     `<div class="fpanel"><div class="frw"><span class="fl">📚<em>科目</em></span>${row(subs, 'subject')}</div><div class="frw"><span class="fl">📝<em>类型</em></span>${row(kinds, 'kind')}</div></div>
+     <div class="wkbar"><span>🗓 本周学习 <b>${(S.swk || []).filter(c => c === ch.id).length}</b> 次</span><span>🏅 优秀 <b>${list.filter(x => isGold(x.score)).length}</b> 个</span><span>📒 共 <b>${list.length}</b> 条</span></div>
      <div class="sec">学习记录</div>
-     <div class="list">${list.map(x => `<div class="row srow" style="--h:${hue(x.subject)}"><div><span class="sb">${esc(x.subject)}</span><span class="sk">${esc(x.kind)}</span>${x.note ? `<small>${esc(x.note)}</small>` : ''}<small>${x.d}</small></div><b class="sc">${esc(x.score) || '✓'}</b></div>`).join('') || '<div class="empty">暂无记录<br>快去记录你的学习点滴吧</div>'}</div>`;
+     <div class="list">${list.map(x => `<div class="row srow" style="--h:${hue(x.subject)}"><div><span class="sb">${subjIc(x.subject)} ${esc(x.subject)}</span><span class="sk">${esc(x.kind)}</span>${x.note ? `<small>${esc(x.note)}</small>` : ''}<small>${x.d}</small></div><b class="sc ${isGold(x.score) ? 'gold' : ''}">${isGold(x.score) ? '⭐ ' : ''}${esc(x.score) || '✓'}</b></div>`).join('') || '<div class="empty">暂无记录<br>快去记录你的学习点滴吧</div>'}</div>`;
 }
 
 // ---------- 我的(成长档案) ----------
@@ -183,7 +205,7 @@ document.addEventListener('click', async e => {
   const a = t.dataset.a, id = +t.dataset.id;
   try {
     if (a === 'grp') { const o = grpOpen(); o[t.dataset.k] = o[t.dataset.k] === false; store.set('xt_grp', JSON.stringify(o)); render(); }
-    else if (a === 'rule') { const r = S.rules.find(x => x.id === id); ask(esc(r.name), `${r.type === 'bad' ? '扣' : '加'} ${r.points} 分,确认吗?`, async () => { await api('/score', 'POST', { childId: S.cid, ruleId: id }); toast(`${r.type === 'bad' ? '-' : '+'}${r.points}`); refresh(); }); }
+    else if (a === 'rule') { const r = S.rules.find(x => x.id === id), rc = t.getBoundingClientRect(); ask(esc(r.name), `${r.type === 'bad' ? '扣' : '加'} ${r.points} 分,确认吗?`, async () => { await api('/score', 'POST', { childId: S.cid, ruleId: id }); toast(`${r.type === 'bad' ? '-' : '+'}${r.points}`); fly(rc, `${r.type === 'bad' ? '-' : '+'}${r.points} ${r.type === 'bad' ? '💔' : '⭐'}`, r.type === 'bad'); refresh(); }); }
     else if (a === 'manual') { const s = +t.dataset.s; modal(`<h3>手动${s > 0 ? '加' : '扣'}分</h3><input id="mp" type="number" inputmode="numeric" placeholder="分数"><input id="mr" placeholder="原因(可不填)">`, async () => { const n = Math.abs(+$('#mp').value | 0); if (!n) throw new Error('请输入分数'); await api('/score', 'POST', { childId: S.cid, delta: s * n, reason: $('#mr').value }); refresh(); }); }
     else if (a === 'redeem') { const i = S.shop.find(x => x.id === id); ask('兑换', `用 ${i.cost} 分兑换「${esc(i.name)}」?`, async () => { await api('/redeem', 'POST', { childId: S.cid, itemId: id }); toast('兑换成功 🎉'); refresh(); }); }
     else if (a === 'checkin') { const r = await api('/checkin', 'POST', { childId: S.cid }); toast(`打卡成功 +${r.got}`); refresh(); }

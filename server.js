@@ -115,6 +115,8 @@ app.get('/api/state', wrap(() => ({
   settings: db.settings, today: dstr(),
   checkins: db.checkins.filter(c => c.d.slice(0, 7) >= dstr(Date.now() - 62 * 864e5).slice(0, 7)),
   wk: db.redeems.filter(r => r.d >= monday()).map(r => ({ childId: r.childId, itemId: r.itemId })), // 本周兑换次数(限兑用)
+  rwk: db.logs.filter(l => l.type === 'rule' && l.d >= monday()).map(l => ({ childId: l.childId, name: l.reason, d: l.d })), // 本周规则次数(卡片徽标用)
+  swk: db.study.filter(x => x.d >= monday()).map(x => x.childId), // 本周学习次数
 })));
 
 // 孩子
