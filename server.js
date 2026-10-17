@@ -31,24 +31,18 @@ function defaults() {
       { id: 13, name: '周末游乐场', cost: 200 },
       { id: 14, name: '新玩具', cost: 300 },
     ],
-    prizes: [
-      { id: 21, name: '谢谢参与,再接再厉', weight: 30, bonus: 0 },
-      { id: 22, name: '+10 积分', weight: 30, bonus: 10 },
-      { id: 23, name: '+20 积分', weight: 15, bonus: 20 },
-      { id: 24, name: '小贴纸一张', weight: 15, bonus: 0 },
-      { id: 25, name: '冰淇淋一个', weight: 10, bonus: 0 },
-    ],
     logs: [], // {id,childId,delta,reason,type,ts,d}
     redeems: [], // {id,childId,name,cost,ts,d}
     checkins: [], // {childId,d}
     focus: [], // {id,childId,task,minutes,ts,d}
     study: [], // {id,childId,subject,kind,score,note,ts,d}
-    settings: { checkinPoints: 5, lotteryCost: 20, focusPer10: 2, focusTasks: ['吃饭', '阅读', '作业'], subjects: ['语文', '数学', '英语', '科学', '音乐', '美术', '体育'], kinds: ['作业', '单元卷', '月考卷', '期中卷', '期末卷'] },
+    settings: { checkinPoints: 5, focusPer10: 2, focusTasks: ['吃饭', '阅读', '作业'], subjects: ['语文', '数学', '英语', '科学', '音乐', '美术', '体育'], kinds: ['作业', '单元卷', '月考卷', '期中卷', '期末卷'] },
   };
 }
 let db;
 try { db = Object.assign(defaults(), JSON.parse(fs.readFileSync(DB_FILE, 'utf8'))); } catch { db = defaults(); }
 db.settings = Object.assign(defaults().settings, db.settings); // 老数据补新设置项
+delete db.prizes; delete db.settings.lotteryCost; // 已移除抽奖功能
 let saving = false, dirty = false;
 function save() {
   if (saving) { dirty = true; return; }
@@ -90,7 +84,7 @@ const wrap = fn => (req, res) => { try { res.json(fn(req, res) ?? { ok: true });
 const need = (cond, msg) => { if (!cond) throw new Error(msg); };
 
 app.get('/api/state', wrap(() => ({
-  children: db.children, rules: db.rules, shop: db.shop, prizes: db.prizes,
+  children: db.children, rules: db.rules, shop: db.shop,
   settings: db.settings, today: dstr(),
   checkins: db.checkins.filter(c => c.d.slice(0, 7) >= dstr(Date.now() - 62 * 864e5).slice(0, 7)),
 })));
@@ -117,7 +111,6 @@ app.delete('/api/children/:id', wrap(req => {
 const colls = {
   rules: o => ({ name: String(o.name || '').trim(), type: o.type === 'bad' ? 'bad' : 'good', points: Math.abs(+o.points || 0) }),
   shop: o => ({ name: String(o.name || '').trim(), cost: Math.abs(+o.cost || 0) }),
-  prizes: o => ({ name: String(o.name || '').trim(), weight: Math.abs(+o.weight || 0), bonus: Math.abs(+o.bonus || 0) }),
 };
 for (const [k, norm] of Object.entries(colls)) {
   app.post(`/api/${k}`, wrap(req => { const o = norm(req.body); need(o.name, '请填写名称'); o.id = nid(); db[k].push(o); return o; }));
@@ -152,20 +145,6 @@ app.post('/api/redeem', wrap(req => {
   return { points: c.points, name: it.name };
 }));
 
-// 抽奖
-app.post('/api/lottery', wrap(req => {
-  const c = child(req.body.childId); need(c, '孩子不存在');
-  const cost = db.settings.lotteryCost;
-  need(c.points >= cost, '积分不够哦');
-  need(db.prizes.length, '还没设置奖品');
-  addLog(c, -cost, '抽奖消耗', 'lottery');
-  let total = db.prizes.reduce((s, p) => s + p.weight, 0), r = Math.random() * total, hit = db.prizes[db.prizes.length - 1];
-  for (const p of db.prizes) { if ((r -= p.weight) < 0) { hit = p; break; } }
-  if (hit.bonus) addLog(c, hit.bonus, '抽中:' + hit.name, 'lottery');
-  else db.logs.push({ id: nid(), childId: c.id, delta: 0, reason: '抽中:' + hit.name, type: 'lottery', ts: Date.now(), d: dstr() });
-  return { points: c.points, prize: hit.name };
-}));
-
 // 打卡
 app.post('/api/checkin', wrap(req => {
   const c = child(req.body.childId); need(c, '孩子不存在');
@@ -193,7 +172,6 @@ app.get('/api/logs', wrap(req => {
   let l = db.logs;
   if (childId) l = l.filter(x => x.childId === +childId);
   if (type === 'redeem') l = l.filter(x => x.type === 'redeem');
-  else if (type === 'lottery') l = l.filter(x => x.type === 'lottery');
   return l.slice(-(+limit || 100)).reverse();
 }));
 app.delete('/api/logs/:id', wrap(req => { // 撤销一条记录并回退积分
@@ -225,7 +203,7 @@ app.get('/api/calendar', wrap(req => {
   const c = child(req.query.childId); need(c, '孩子不存在');
   const m = /^\d{4}-\d{2}$/.test(req.query.month) ? req.query.month : dstr().slice(0, 7);
   const days = {}, at = d => days[d] || (days[d] = { net: 0, checkin: false, study: 0, focus: 0 });
-  for (const l of db.logs) if (l.childId === c.id && l.d.startsWith(m) && l.type !== 'redeem' && l.type !== 'lottery') at(l.d).net += l.delta;
+  for (const l of db.logs) if (l.childId === c.id && l.d.startsWith(m) && l.type !== 'redeem') at(l.d).net += l.delta;
   for (const x of db.checkins) if (x.childId === c.id && x.d.startsWith(m)) at(x.d).checkin = true;
   for (const x of db.study) if (x.childId === c.id && x.d.startsWith(m)) at(x.d).study++;
   for (const x of db.focus) if (x.childId === c.id && x.d.startsWith(m)) at(x.d).focus += x.minutes;
@@ -250,7 +228,7 @@ app.get('/api/stats', wrap(req => {
     const [yy, mm] = month.split('-').map(Number), days = new Date(yy, mm, 0).getDate();
     const daily = Array(days).fill(0); let gain = 0, loss = 0; const gr = {}, lr = {};
     for (const l of db.logs) {
-      if (l.childId !== c.id || l.d.slice(0, 7) !== month || l.type === 'redeem' || l.type === 'lottery') continue;
+      if (l.childId !== c.id || l.d.slice(0, 7) !== month || l.type === 'redeem') continue;
       daily[+l.d.slice(8) - 1] += l.delta;
       if (l.delta > 0) { gain += l.delta; gr[l.reason] = (gr[l.reason] || 0) + l.delta; }
       else if (l.delta < 0) { loss += -l.delta; lr[l.reason] = (lr[l.reason] || 0) + -l.delta; }
@@ -263,7 +241,6 @@ app.get('/api/stats', wrap(req => {
 app.put('/api/settings', wrap(req => {
   const s = db.settings, b = req.body;
   if (b.checkinPoints != null) s.checkinPoints = Math.max(0, +b.checkinPoints | 0);
-  if (b.lotteryCost != null) s.lotteryCost = Math.max(0, +b.lotteryCost | 0);
   if (b.focusPer10 != null) s.focusPer10 = Math.max(0, +b.focusPer10 | 0);
   for (const k of ['focusTasks', 'subjects', 'kinds']) if (Array.isArray(b[k])) s[k] = b[k].map(x => String(x).trim()).filter(Boolean).slice(0, 16);
   return s;

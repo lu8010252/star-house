@@ -62,7 +62,6 @@
 .mbox input { width: 100%; padding: 12px; border-radius: 14px; border: 2px solid var(--purple-l); margin-bottom: 10px; text-align: center; outline: 0; }
 .mbox .mb { display: flex; gap: 10px; } .mbox .mb button { flex: 1; padding: 12px; border-radius: 16px; font-weight: 800; background: var(--purple-l); }
 .mbox .mb button.ok { background: linear-gradient(90deg, var(--pink), var(--purple)); color: #fff; }
-.prize { font-size: 46px; margin: 4px 0; } .spin { animation: sp .5s linear infinite; display: inline-block; } @keyframes sp { to { transform: rotate(360deg); } }
 
 .herobtn { position: relative; display: block; margin-top: 12px; padding: 10px 22px; border-radius: 22px; background: var(--yellow); font-weight: 800; box-shadow: 0 3px 0 #e0b230; }
 .chips.nowrap { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; } .chips.nowrap .chip { flex: none; }

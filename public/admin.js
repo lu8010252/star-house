@@ -1,6 +1,6 @@
 // 星星屋 · 家长后台
-const S = { children: [], rules: [], shop: [], prizes: [], settings: {}, cid: 0, tab: store.get('xa_tab') || 'dash', month: '' };
-const TABS = [['dash', '首页看板'], ['kids', '孩子管理'], ['rules', '赏罚规则'], ['shop', '商城 / 抽奖'], ['logs', '积分记录'], ['study', '学习记录'], ['set', '系统设置']];
+const S = { children: [], rules: [], shop: [], settings: {}, cid: 0, tab: store.get('xa_tab') || 'dash', month: '' };
+const TABS = [['dash', '首页看板'], ['kids', '孩子管理'], ['rules', '赏罚规则'], ['shop', '商城'], ['logs', '积分记录'], ['study', '学习记录'], ['set', '系统设置']];
 const ym = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 S.month = ym(new Date());
 const shiftMonth = (m, n) => { const [y, mo] = m.split('-').map(Number); return ym(new Date(y, mo - 1 + n, 1)); };
@@ -53,8 +53,7 @@ function editor(coll, fields, defs) {
   return S[coll].map(o => row(o)).join('') + `<div style="margin-top:10px"><small>新增</small>${row(defs, true)}</div>`;
 }
 const rules = () => `<div class="box"><h3>赏罚规则</h3>${editor('rules', [{ k: 'name', l: '名称' }, { k: 'type', l: '类型', sel: [['good', '加分项'], ['bad', '扣分项']] }, { k: 'points', l: '分值', num: 1 }], { name: '', type: 'good', points: 10 })}</div>`;
-const shop = () => `<div class="box"><h3>兑换商品</h3>${editor('shop', [{ k: 'name', l: '商品' }, { k: 'cost', l: '所需积分', num: 1 }], { name: '', cost: 50 })}</div>
-  <div class="box"><h3>抽奖奖品</h3><small style="color:var(--ink2)">权重越大越容易抽中;"奖励积分"为 0 表示实物奖励(家长线下兑现)</small>${editor('prizes', [{ k: 'name', l: '奖品' }, { k: 'weight', l: '权重', num: 1 }, { k: 'bonus', l: '奖励积分', num: 1 }], { name: '', weight: 10, bonus: 0 })}</div>`;
+const shop = () => `<div class="box"><h3>兑换商品</h3>${editor('shop', [{ k: 'name', l: '商品' }, { k: 'cost', l: '所需积分', num: 1 }], { name: '', cost: 50 })}</div>`;
 
 // ---- 孩子 ----
 const kids = () => `<div class="box"><h3>孩子管理</h3><small style="color:var(--ink2)">形象图会显示在手机前台的大卡片右侧,建议用透明底 PNG / 半身像</small>
@@ -80,7 +79,6 @@ async function study() {
 // ---- 设置 ----
 const set = () => { const s = S.settings; return `<div class="box"><h3>系统设置</h3>
   <div class="ed"><small>每日打卡得分</small><input id="s1" type="number" value="${s.checkinPoints}"></div>
-  <div class="ed"><small>抽奖一次消耗积分</small><input id="s2" type="number" value="${s.lotteryCost}"></div>
   <div class="ed"><small>专注每 10 分钟得分</small><input id="s3" type="number" value="${s.focusPer10}"></div>
   <div class="ed"><small>专注任务(逗号分隔)</small><input id="s4" style="flex:1" value="${esc((s.focusTasks || []).join(','))}"></div>
   <div class="ed"><small>学习科目(逗号分隔)</small><input id="s5" style="flex:1" value="${esc((s.subjects || []).join(','))}"></div>
@@ -106,7 +104,7 @@ document.addEventListener('click', async e => {
     else if (a === 'manual') { const d = +$('#md').value | 0; if (!d) return toast('请输入分数'); await api('/score', 'POST', { childId: S.cid, delta: d, reason: $('#mr').value }); toast('已记录'); await load(); }
     else if (a === 'undo') { if (confirm('撤销这条记录并回退积分?')) { await api('/logs/' + t.dataset.id, 'DELETE'); await load(); } }
     else if (a === 'stdel') { if (confirm('删除这条学习记录?')) { await api('/study/' + t.dataset.id, 'DELETE'); render(); } }
-    else if (a === 'setsave') { await api('/settings', 'PUT', { checkinPoints: $('#s1').value, lotteryCost: $('#s2').value, focusPer10: $('#s3').value, focusTasks: $('#s4').value.split(/[,,、]/), subjects: $('#s5').value.split(/[,,、]/), kinds: $('#s6').value.split(/[,,、]/) }); toast('已保存'); await load(); }
+    else if (a === 'setsave') { await api('/settings', 'PUT', { checkinPoints: $('#s1').value, focusPer10: $('#s3').value, focusTasks: $('#s4').value.split(/[,,、]/), subjects: $('#s5').value.split(/[,,、]/), kinds: $('#s6').value.split(/[,,、]/) }); toast('已保存'); await load(); }
   } catch (er) { toast(er.message); }
 });
 document.addEventListener('change', e => { if (e.target.dataset.a === 'kid') { S.cid = +e.target.value; render(); } });

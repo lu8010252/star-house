@@ -61,7 +61,6 @@ function shop() {
   const s = S.settings;
   return hero('shop') +
     `<div class="sec">🎀 快乐补给站</div><div class="big">
-      <button class="card shop" data-a="lottery"><span class="em">🎲</span><b>积分抽奖</b><small>${s.lotteryCost} 分一次</small></button>
       <button class="card shop" data-a="checkin"><span class="em">✅</span><b>每日打卡</b><small>+${s.checkinPoints} 分</small></button></div>` +
     `<div class="sec">🛍 积分兑换</div><div class="grid">${S.shop.map(i => `<button class="card shop" data-a="redeem" data-id="${i.id}"><span class="name">${esc(i.name)}</span><span class="pt">⭐ ${i.cost}</span></button>`).join('') || '<div class="empty">家长后台还没添加商品</div>'}</div>`;
 }
@@ -103,7 +102,7 @@ async function study() {
 
 // ---------- 我的(成长档案) ----------
 let meV = '', calM = '';
-const MENU = [['calendar', '📅', '时光日历', '看看每天的成长足迹', '#8fc2ff'], ['logs', '⭐', '积分记录', '每一次加扣分', '#ff9aa9'], ['redeem', '🛍', '兑换记录', '好物兑换历史', '#7be0bd'], ['lottery', '🏆', '抽奖记录', '收藏每一次小惊喜', '#ffcf4d'], ['focus', '⏱', '专注记录', '回顾认真投入的时光', '#c5aaff']];
+const MENU = [['calendar', '📅', '时光日历', '看看每天的成长足迹', '#8fc2ff'], ['logs', '⭐', '积分记录', '每一次加扣分', '#ff9aa9'], ['redeem', '🛍', '兑换记录', '好物兑换历史', '#7be0bd'], ['focus', '⏱', '专注记录', '回顾认真投入的时光', '#c5aaff']];
 const logRow = l => `<div class="row"><div>${esc(l.reason)}<small>${fmtTime(l.ts)}</small></div><b class="${l.delta >= 0 ? 'p' : 'n'}">${l.delta ? sign(l.delta) : '🎁'}</b></div>`;
 async function me() {
   const ch = cur();
@@ -144,12 +143,6 @@ document.addEventListener('click', async e => {
     if (a === 'rule') { const r = S.rules.find(x => x.id === id); ask(esc(r.name), `${r.type === 'bad' ? '扣' : '加'} ${r.points} 分,确认吗?`, async () => { await api('/score', 'POST', { childId: S.cid, ruleId: id }); toast(`${r.type === 'bad' ? '-' : '+'}${r.points}`); refresh(); }); }
     else if (a === 'manual') { const s = +t.dataset.s; modal(`<h3>手动${s > 0 ? '加' : '扣'}分</h3><input id="mp" type="number" inputmode="numeric" placeholder="分数"><input id="mr" placeholder="原因(可不填)">`, async () => { const n = Math.abs(+$('#mp').value | 0); if (!n) throw new Error('请输入分数'); await api('/score', 'POST', { childId: S.cid, delta: s * n, reason: $('#mr').value }); refresh(); }); }
     else if (a === 'redeem') { const i = S.shop.find(x => x.id === id); ask('兑换', `用 ${i.cost} 分兑换「${esc(i.name)}」?`, async () => { await api('/redeem', 'POST', { childId: S.cid, itemId: id }); toast('兑换成功 🎉'); refresh(); }); }
-    else if (a === 'lottery') ask('积分抽奖', `消耗 ${S.settings.lotteryCost} 分抽一次,试试手气?`, async () => {
-      $('#modal').innerHTML = `<div class="mbox"><div class="prize"><span class="spin">🎲</span></div><p>抽奖中…</p></div>`;
-      const [r] = await Promise.all([api('/lottery', 'POST', { childId: S.cid }).catch(er => er), new Promise(r => setTimeout(r, 900))]);
-      if (r instanceof Error) { toast(r.message); close(); return false; }
-      modal(`<div class="prize">🎉</div><h3>${esc(r.prize)}</h3>`); refresh(); return false;
-    });
     else if (a === 'checkin') { const r = await api('/checkin', 'POST', { childId: S.cid }); toast(`打卡成功 +${r.got}`); refresh(); }
     else if (a === 'fstart') { F.endAt = Date.now() + F.minutes * 60000; F.running = true; render(); }
     else if (a === 'fstop') ask('放弃专注?', '现在放弃就没有积分啦', async () => { F.running = false; render(); });
