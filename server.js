@@ -114,6 +114,13 @@ const colls = {
   rules: o => ({ name: String(o.name || '').trim(), type: o.type === 'bad' ? 'bad' : 'good', points: Math.abs(+o.points || 0) }),
   shop: o => ({ name: String(o.name || '').trim(), cost: Math.abs(+o.cost || 0) }),
 };
+// 排序:前端传完整 id 顺序(须在 /:id 路由之前注册)
+for (const k of Object.keys(colls)) {
+  app.put(`/api/${k}/order`, wrap(req => {
+    const ids = Array.isArray(req.body.ids) ? req.body.ids.map(Number) : [], pos = new Map(ids.map((id, i) => [id, i]));
+    db[k].sort((a, b) => (pos.has(a.id) ? pos.get(a.id) : 1e9) - (pos.has(b.id) ? pos.get(b.id) : 1e9));
+  }));
+}
 for (const [k, norm] of Object.entries(colls)) {
   app.post(`/api/${k}`, wrap(req => { const o = norm(req.body); need(o.name, '请填写名称'); o.id = nid(); db[k].push(o); return o; }));
   app.put(`/api/${k}/:id`, wrap(req => {
