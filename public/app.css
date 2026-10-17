@@ -63,3 +63,17 @@
 .mbox .mb { display: flex; gap: 10px; } .mbox .mb button { flex: 1; padding: 12px; border-radius: 16px; font-weight: 800; background: var(--purple-l); }
 .mbox .mb button.ok { background: linear-gradient(90deg, var(--pink), var(--purple)); color: #fff; }
 .prize { font-size: 46px; margin: 4px 0; } .spin { animation: sp .5s linear infinite; display: inline-block; } @keyframes sp { to { transform: rotate(360deg); } }
+
+.herobtn { position: relative; display: block; margin-top: 12px; padding: 10px 22px; border-radius: 22px; background: var(--yellow); font-weight: 800; box-shadow: 0 3px 0 #e0b230; }
+.chips.nowrap { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; } .chips.nowrap .chip { flex: none; }
+.row .sc { font-size: 20px; color: var(--purple-d); }
+.mbox select { width: 100%; padding: 12px; border-radius: 14px; border: 2px solid var(--purple-l); margin-bottom: 10px; background: #fff; outline: 0; }
+.mbox input[type=date] { text-align: center; }
+.menu button { display: flex; align-items: center; gap: 14px; width: 100%; margin-bottom: 12px; padding: 16px; border-radius: 22px; background: #fff; border: 2.5px dashed var(--c); text-align: left; box-shadow: 0 3px 0 rgba(0,0,0,.04); }
+.menu .mi { width: 46px; height: 46px; border-radius: 16px; display: grid; place-items: center; font-size: 24px; background: #fff7; border: 2px solid var(--c); } .menu b { display: block; font-size: 17px; } .menu small { color: var(--ink2); } .menu i { margin-left: auto; font-style: normal; font-size: 24px; color: var(--ink2); }
+.back { margin: 14px 0 0; padding: 8px 16px; border-radius: 16px; background: #fff; font-weight: 800; color: var(--purple-d); }
+.monthbar { display: flex; align-items: center; justify-content: space-between; margin: 6px 4px 12px; font-size: 18px; } .monthbar button { width: 40px; height: 40px; border-radius: 50%; background: #fff; font-size: 22px; color: var(--purple-d); }
+.cal .d2 { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.dc { aspect-ratio: 1 / 1.15; border-radius: 12px; background: #faf7ff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 0; font-size: 14px; }
+.dc small { font-size: 10px; font-weight: 800; } .dc small.p { color: #1e9c78; } .dc small.n { color: #e0455e; } .dc em { font-size: 10px; font-style: normal; line-height: 1; }
+.dc.ck { background: linear-gradient(135deg, #e5d9ff, #ffd9ec); } .dc.today { outline: 2px solid var(--yellow); }

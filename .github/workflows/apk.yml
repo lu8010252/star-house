@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       server_url:
-        description: '服务器地址(手机能访问到的,如 https://diary.example.com 或 http://192.168.0.10:8090)'
+        description: '服务器地址(手机能访问到的,如 https://diary.example.com 或 http://192.168.0.10:8020)'
         required: true
 
 jobs:

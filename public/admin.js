@@ -1,6 +1,6 @@
 // 星星屋 · 家长后台
 const S = { children: [], rules: [], shop: [], prizes: [], settings: {}, cid: 0, tab: store.get('xa_tab') || 'dash', month: '' };
-const TABS = [['dash', '首页看板'], ['kids', '孩子管理'], ['rules', '赏罚规则'], ['shop', '商城 / 抽奖'], ['logs', '积分记录'], ['set', '系统设置']];
+const TABS = [['dash', '首页看板'], ['kids', '孩子管理'], ['rules', '赏罚规则'], ['shop', '商城 / 抽奖'], ['logs', '积分记录'], ['study', '学习记录'], ['set', '系统设置']];
 const ym = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 S.month = ym(new Date());
 const shiftMonth = (m, n) => { const [y, mo] = m.split('-').map(Number); return ym(new Date(y, mo - 1 + n, 1)); };
@@ -13,7 +13,7 @@ async function load() {
 
 function render() {
   $('#tabs').innerHTML = TABS.map(([k, n]) => `<button data-t="${k}" class="${S.tab === k ? 'on' : ''}">${n}</button>`).join('');
-  const f = { dash, kids, rules, shop, logs, set }[S.tab];
+  const f = { dash, kids, rules, shop, logs, study, set }[S.tab];
   Promise.resolve(f()).then(h => { $('#main').innerHTML = h; if (S.tab === 'dash') drawCharts(); });
 }
 const kidSel = () => `<select data-a="kid">${S.children.map(c => `<option value="${c.id}" ${c.id === S.cid ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>`;
@@ -70,12 +70,21 @@ async function logs() {
    <div class="box"><h3>积分记录</h3><table>${l.map(x => `<tr><td>${fmtTime(x.ts)}</td><td>${esc(x.reason)}</td><td class="${x.delta >= 0 ? 'p' : 'n'}">${x.delta ? sign(x.delta) : '-'}</td><td><button class="b g" data-a="undo" data-id="${x.id}">撤销</button></td></tr>`).join('') || '<tr><td>暂无</td></tr>'}</table></div>`;
 }
 
+// ---- 学习记录 ----
+async function study() {
+  if (!S.cid) return '<div class="box">先添加孩子</div>';
+  const l = await api(`/study?childId=${S.cid}`);
+  return `<div class="box"><h3>学习记录</h3><div class="bar">${kidSel()}<small>共 ${l.length} 条</small></div><table>${l.map(x => `<tr><td>${x.d}</td><td>${esc(x.subject)} · ${esc(x.kind)}</td><td><b>${esc(x.score) || '✓'}</b></td><td>${esc(x.note)}</td><td><button class="b r" data-a="stdel" data-id="${x.id}">删除</button></td></tr>`).join('') || '<tr><td>暂无</td></tr>'}</table></div>`;
+}
+
 // ---- 设置 ----
 const set = () => { const s = S.settings; return `<div class="box"><h3>系统设置</h3>
   <div class="ed"><small>每日打卡得分</small><input id="s1" type="number" value="${s.checkinPoints}"></div>
   <div class="ed"><small>抽奖一次消耗积分</small><input id="s2" type="number" value="${s.lotteryCost}"></div>
   <div class="ed"><small>专注每 10 分钟得分</small><input id="s3" type="number" value="${s.focusPer10}"></div>
   <div class="ed"><small>专注任务(逗号分隔)</small><input id="s4" style="flex:1" value="${esc((s.focusTasks || []).join(','))}"></div>
+  <div class="ed"><small>学习科目(逗号分隔)</small><input id="s5" style="flex:1" value="${esc((s.subjects || []).join(','))}"></div>
+  <div class="ed"><small>学习类型(逗号分隔)</small><input id="s6" style="flex:1" value="${esc((s.kinds || []).join(','))}"></div>
   <div style="margin-top:12px"><button class="b" data-a="setsave">保存设置</button></div>
   <p style="color:var(--ink2);font-size:13px">登录密码在 docker-compose.yml 的 PASSWORD 中修改。</p></div>`; };
 
@@ -96,7 +105,8 @@ document.addEventListener('click', async e => {
     else if (a === 'ava') { const url = await pickImage(900); await api('/children/' + row.dataset.id, 'PUT', { avatar: url }); toast('形象图已更新'); await load(); }
     else if (a === 'manual') { const d = +$('#md').value | 0; if (!d) return toast('请输入分数'); await api('/score', 'POST', { childId: S.cid, delta: d, reason: $('#mr').value }); toast('已记录'); await load(); }
     else if (a === 'undo') { if (confirm('撤销这条记录并回退积分?')) { await api('/logs/' + t.dataset.id, 'DELETE'); await load(); } }
-    else if (a === 'setsave') { await api('/settings', 'PUT', { checkinPoints: $('#s1').value, lotteryCost: $('#s2').value, focusPer10: $('#s3').value, focusTasks: $('#s4').value.split(/[,,、]/) }); toast('已保存'); await load(); }
+    else if (a === 'stdel') { if (confirm('删除这条学习记录?')) { await api('/study/' + t.dataset.id, 'DELETE'); render(); } }
+    else if (a === 'setsave') { await api('/settings', 'PUT', { checkinPoints: $('#s1').value, lotteryCost: $('#s2').value, focusPer10: $('#s3').value, focusTasks: $('#s4').value.split(/[,,、]/), subjects: $('#s5').value.split(/[,,、]/), kinds: $('#s6').value.split(/[,,、]/) }); toast('已保存'); await load(); }
   } catch (er) { toast(er.message); }
 });
 document.addEventListener('change', e => { if (e.target.dataset.a === 'kid') { S.cid = +e.target.value; render(); } });

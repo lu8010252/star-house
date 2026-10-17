@@ -42,11 +42,13 @@ function defaults() {
     redeems: [], // {id,childId,name,cost,ts,d}
     checkins: [], // {childId,d}
     focus: [], // {id,childId,task,minutes,ts,d}
-    settings: { checkinPoints: 5, lotteryCost: 20, focusPer10: 2, focusTasks: ['吃饭', '阅读', '作业'] },
+    study: [], // {id,childId,subject,kind,score,note,ts,d}
+    settings: { checkinPoints: 5, lotteryCost: 20, focusPer10: 2, focusTasks: ['吃饭', '阅读', '作业'], subjects: ['语文', '数学', '英语', '科学', '音乐', '美术', '体育'], kinds: ['作业', '单元卷', '月考卷', '期中卷', '期末卷'] },
   };
 }
 let db;
 try { db = Object.assign(defaults(), JSON.parse(fs.readFileSync(DB_FILE, 'utf8'))); } catch { db = defaults(); }
+db.settings = Object.assign(defaults().settings, db.settings); // 老数据补新设置项
 let saving = false, dirty = false;
 function save() {
   if (saving) { dirty = true; return; }
@@ -108,7 +110,7 @@ app.put('/api/children/:id', wrap(req => {
 app.delete('/api/children/:id', wrap(req => {
   const id = +req.params.id;
   db.children = db.children.filter(c => c.id !== id);
-  for (const k of ['logs', 'redeems', 'checkins', 'focus']) db[k] = db[k].filter(x => x.childId !== id);
+  for (const k of ['logs', 'redeems', 'checkins', 'focus', 'study']) db[k] = db[k].filter(x => x.childId !== id);
 }));
 
 // 规则 / 商城 / 奖品 通用增删改
@@ -202,6 +204,42 @@ app.delete('/api/logs/:id', wrap(req => { // 撤销一条记录并回退积分
 }));
 app.get('/api/focus', wrap(req => db.focus.filter(x => !req.query.childId || x.childId === +req.query.childId).slice(-100).reverse()));
 
+// 学习记录
+app.post('/api/study', wrap(req => {
+  const c = child(req.body.childId); need(c, '孩子不存在');
+  const subject = String(req.body.subject || '').trim().slice(0, 10), kind = String(req.body.kind || '').trim().slice(0, 10);
+  need(subject && kind, '请选择科目和类型');
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(req.body.d) ? req.body.d : dstr();
+  const r = { id: nid(), childId: c.id, subject, kind, score: String(req.body.score || '').trim().slice(0, 10), note: String(req.body.note || '').trim().slice(0, 200), ts: Date.now(), d };
+  db.study.push(r); return r;
+}));
+app.get('/api/study', wrap(req => {
+  const { childId, subject, kind } = req.query;
+  return db.study.filter(x => (!childId || x.childId === +childId) && (!subject || x.subject === subject) && (!kind || x.kind === kind))
+    .sort((a, b) => b.d.localeCompare(a.d) || b.id - a.id).slice(0, 200);
+}));
+app.delete('/api/study/:id', wrap(req => { db.study = db.study.filter(x => x.id !== +req.params.id); }));
+
+// 时光日历:月度每日概览 / 单日详情
+app.get('/api/calendar', wrap(req => {
+  const c = child(req.query.childId); need(c, '孩子不存在');
+  const m = /^\d{4}-\d{2}$/.test(req.query.month) ? req.query.month : dstr().slice(0, 7);
+  const days = {}, at = d => days[d] || (days[d] = { net: 0, checkin: false, study: 0, focus: 0 });
+  for (const l of db.logs) if (l.childId === c.id && l.d.startsWith(m) && l.type !== 'redeem' && l.type !== 'lottery') at(l.d).net += l.delta;
+  for (const x of db.checkins) if (x.childId === c.id && x.d.startsWith(m)) at(x.d).checkin = true;
+  for (const x of db.study) if (x.childId === c.id && x.d.startsWith(m)) at(x.d).study++;
+  for (const x of db.focus) if (x.childId === c.id && x.d.startsWith(m)) at(x.d).focus += x.minutes;
+  return { month: m, days };
+}));
+app.get('/api/day', wrap(req => {
+  const c = child(req.query.childId); need(c, '孩子不存在');
+  const d = String(req.query.d || '');
+  return {
+    logs: db.logs.filter(x => x.childId === c.id && x.d === d), study: db.study.filter(x => x.childId === c.id && x.d === d),
+    focus: db.focus.filter(x => x.childId === c.id && x.d === d), checkin: db.checkins.some(x => x.childId === c.id && x.d === d),
+  };
+}));
+
 // 月度统计
 app.get('/api/stats', wrap(req => {
   const c = child(req.query.childId); need(c, '孩子不存在');
@@ -227,7 +265,7 @@ app.put('/api/settings', wrap(req => {
   if (b.checkinPoints != null) s.checkinPoints = Math.max(0, +b.checkinPoints | 0);
   if (b.lotteryCost != null) s.lotteryCost = Math.max(0, +b.lotteryCost | 0);
   if (b.focusPer10 != null) s.focusPer10 = Math.max(0, +b.focusPer10 | 0);
-  if (Array.isArray(b.focusTasks)) s.focusTasks = b.focusTasks.map(x => String(x).trim()).filter(Boolean).slice(0, 12);
+  for (const k of ['focusTasks', 'subjects', 'kinds']) if (Array.isArray(b[k])) s[k] = b[k].map(x => String(x).trim()).filter(Boolean).slice(0, 16);
   return s;
 }));
 

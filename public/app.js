@@ -1,12 +1,12 @@
 // 星星屋 · 手机前台
 const S = { children: [], rules: [], shop: [], settings: {}, checkins: [], today: '', cid: +store.get('xt_cid') || 0, tab: store.get('xt_tab') || 'score' };
 const F = { task: '', minutes: 30, endAt: 0, running: false }; // 专注状态
-const TABS = [['score', '🏅', '赏罚'], ['shop', '🎁', '商城'], ['focus', '⏱', '专注'], ['checkin', '📅', '打卡'], ['me', '🧸', '我的']];
+const TABS = [['score', '🏅', '赏罚'], ['study', '📚', '学习'], ['focus', '⏱', '专注'], ['shop', '🎁', '商城'], ['me', '🧸', '我的']];
 const HERO = {
   score: ['赏罚分明', '每一次好表现,<br>都值得被看见!', '#ffcf4d', '#fff3c9'],
   shop: ['快乐补给站', '攒积分,<br>换好礼!', '#ff7eb6', '#ffe3f0'],
   focus: ['专注时刻', '安静一点点,<br>进步一大步!', '#9b7bff', '#ece6ff'],
-  checkin: ['每日打卡', '坚持一点点,<br>闪闪发光!', '#4cc9a0', '#def7ee'],
+  study: ['笔墨留香', '今天也要<br>闪闪发光呀!', '#6aa8ff', '#e2efff'],
   me: ['成长档案', '记录每一天,<br>书写成长篇章', '#9b7bff', '#ece6ff'],
 };
 const cur = () => S.children.find(c => c.id === S.cid) || S.children[0];
@@ -21,7 +21,7 @@ function hero(tab, extra = '') {
 
 // ---------- 弹窗 ----------
 function modal(html, onOk, okText = '确定') {
-  const m = $('#modal'); m.innerHTML = `<div class="mbox">${html}<div class="mb"><button data-x="no">取消</button>${onOk ? `<button class="ok" data-x="ok">${okText}</button>` : ''}</div></div>`;
+  const m = $('#modal'); m.innerHTML = `<div class="mbox">${html}<div class="mb"><button data-x="no">${onOk ? '取消' : '关闭'}</button>${onOk ? `<button class="ok" data-x="ok">${okText}</button>` : ''}</div></div>`;
   m.onclick = async e => {
     const x = e.target.dataset.x;
     if (e.target === m || x === 'no') return close();
@@ -40,7 +40,7 @@ function render() {
     $('#page').innerHTML = `<div class="hero">${'<h1>星星屋</h1><div class="bar"></div><p>先添加一个孩子吧</p>'}${placeholder}</div><div class="empty">还没有孩子<br><br><button class="btn" data-a="addchild">+ 添加孩子</button></div>`;
     return;
   }
-  const v = { score, shop, focus, checkin, me }[S.tab];
+  const v = { score, study, focus, shop, me }[S.tab];
   const r = v();
   if (r && r.then) r.then(h => { $('#page').innerHTML = h; }); else $('#page').innerHTML = r;
 }
@@ -89,24 +89,50 @@ async function finishFocus() {
   try { const r = await api('/focus', 'POST', { childId: S.cid, task: F.task, minutes: F.minutes }); toast(`专注完成!${r.got ? '+' + r.got + ' 分' : ''}`); await refresh(); } catch (e) { toast(e.message); }
 }
 
-function checkin() {
-  const now = new Date(S.today.replace(/-/g, '/')), y = now.getFullYear(), m = now.getMonth(), first = new Date(y, m, 1).getDay(), days = new Date(y, m + 1, 0).getDate();
-  const done = new Set(S.checkins.filter(c => c.childId === S.cid).map(c => c.d));
-  let cells = '<span></span>'.repeat(first);
-  for (let d = 1; d <= days; d++) { const k = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`; cells += `<span class="${done.has(k) ? 'ok' : ''} ${k === S.today ? 'today' : ''}">${d}</span>`; }
-  const n = [...done].filter(k => k.startsWith(`${y}-${String(m + 1).padStart(2, '0')}`)).length;
-  return hero('checkin') + `<div class="sec">${m + 1} 月打卡 · 已坚持 ${n} 天</div><div class="cal"><div class="w">${'日一二三四五六'.split('').map(x => `<span>${x}</span>`).join('')}</div><div class="d">${cells}</div></div>
-    <div class="btns" style="margin-top:18px"><button class="btn" data-a="checkin" ${done.has(S.today) ? 'disabled style="opacity:.5"' : ''}>${done.has(S.today) ? '今天已打卡 ✓' : '今日打卡 +' + S.settings.checkinPoints}</button></div>`;
+// ---------- 学习 ----------
+const stF = { subject: '', kind: '' };
+async function study() {
+  const ch = cur(), subs = S.settings.subjects || [], kinds = S.settings.kinds || [];
+  const list = await api(`/study?childId=${ch.id}&subject=${encodeURIComponent(stF.subject)}&kind=${encodeURIComponent(stF.kind)}`);
+  const row = (arr, key) => `<div class="chips nowrap">${['', ...arr].map(v => `<button class="chip ${stF[key] === v ? 'on' : ''}" data-a="stf" data-k="${key}" data-v="${esc(v)}">${v ? esc(v) : '全部'}</button>`).join('')}</div>`;
+  return hero('study', '<button class="herobtn" data-a="stadd">＋ 记录</button>') +
+    `<div class="sec">📚 科目</div>${row(subs, 'subject')}<div class="sec">📝 类型</div>${row(kinds, 'kind')}<div class="sec">学习记录</div>
+     <div class="list">${list.map(x => `<div class="row"><div><b>${esc(x.subject)}</b> · ${esc(x.kind)}${x.note ? `<small>${esc(x.note)}</small>` : ''}<small>${x.d}</small></div><b class="sc">${esc(x.score) || '✓'}</b></div>`).join('') || '<div class="empty">暂无记录<br>快去记录你的学习点滴吧</div>'}</div>`;
 }
 
-let meFilter = 'all';
+// ---------- 我的(成长档案) ----------
+let meV = '', calM = '';
+const MENU = [['calendar', '📅', '时光日历', '看看每天的成长足迹', '#8fc2ff'], ['logs', '⭐', '积分记录', '每一次加扣分', '#ff9aa9'], ['redeem', '🛍', '兑换记录', '好物兑换历史', '#7be0bd'], ['lottery', '🏆', '抽奖记录', '收藏每一次小惊喜', '#ffcf4d'], ['focus', '⏱', '专注记录', '回顾认真投入的时光', '#c5aaff']];
+const logRow = l => `<div class="row"><div>${esc(l.reason)}<small>${fmtTime(l.ts)}</small></div><b class="${l.delta >= 0 ? 'p' : 'n'}">${l.delta ? sign(l.delta) : '🎁'}</b></div>`;
 async function me() {
-  const ch = cur(), logs = await api(`/logs?childId=${ch.id}&type=${meFilter === 'all' ? '' : meFilter}&limit=60`);
-  return hero('me') +
-    `<div class="sec">📒 记录</div><div class="chips" style="margin-bottom:12px">${[['all', '积分记录'], ['redeem', '兑换记录'], ['lottery', '抽奖记录']].map(([k, n]) => `<button class="chip ${meFilter === k ? 'on' : ''}" data-a="mf" data-v="${k}">${n}</button>`).join('')}</div>
-     <div class="list">${logs.map(l => `<div class="row"><div>${esc(l.reason)}<small>${fmtTime(l.ts)}</small></div><b class="${l.delta >= 0 ? 'p' : 'n'}">${l.delta ? sign(l.delta) : '🎁'}</b></div>`).join('') || '<div class="empty">暂无记录</div>'}</div>
-     <button class="link" data-a="logout">退出登录</button>`;
+  const ch = cur();
+  if (!meV) return hero('me') + `<div class="sec">📁 成长档案</div><div class="menu">${MENU.map(([k, ic, t, s, c]) => `<button style="--c:${c}" data-a="mv" data-v="${k}"><span class="mi">${ic}</span><span><b>${t}</b><small>${s}</small></span><i>›</i></button>`).join('')}</div><button class="link" data-a="logout">退出登录</button>`;
+  const it = MENU.find(m => m[0] === meV), head = `<button class="back" data-a="mv" data-v="">‹ 返回</button><div class="sec">${it[1]} ${it[2]}</div>`;
+  if (meV === 'calendar') return head + await calendar(ch);
+  if (meV === 'focus') { const f = await api(`/focus?childId=${ch.id}`); return head + `<div class="list">${f.map(x => `<div class="row"><div>${esc(x.task)}<small>${x.d}</small></div><b class="p">${x.minutes} 分钟</b></div>`).join('') || '<div class="empty">暂无记录</div>'}</div>`; }
+  const logs = await api(`/logs?childId=${ch.id}&type=${meV === 'logs' ? '' : meV}&limit=80`);
+  return head + `<div class="list">${logs.map(logRow).join('') || '<div class="empty">暂无记录</div>'}</div>`;
 }
+async function calendar(ch) {
+  if (!calM) calM = S.today.slice(0, 7);
+  const { days } = await api(`/calendar?childId=${ch.id}&month=${calM}`);
+  const [y, m] = calM.split('-').map(Number), first = new Date(y, m - 1, 1).getDay(), n = new Date(y, m, 0).getDate();
+  let cells = '<i></i>'.repeat(first);
+  for (let d = 1; d <= n; d++) {
+    const k = `${calM}-${String(d).padStart(2, '0')}`, v = days[k];
+    cells += `<button class="dc ${k === S.today ? 'today' : ''} ${v && v.checkin ? 'ck' : ''}" data-a="day" data-d="${k}"><span>${d}</span>${v ? `<small class="${v.net >= 0 ? 'p' : 'n'}">${v.net ? sign(v.net) : ''}</small>${v.study ? '<em>📚</em>' : ''}` : ''}</button>`;
+  }
+  const ck = Object.values(days).filter(v => v.checkin).length;
+  return `<div class="monthbar"><button data-a="cm" data-n="-1">‹</button><b>${y}年${m}月</b><button data-a="cm" data-n="1">›</button></div>
+    <div class="cal"><div class="w">${'日一二三四五六'.split('').map(x => `<span>${x}</span>`).join('')}</div><div class="d2">${cells}</div></div>
+    <div class="empty" style="font-size:13px">本月打卡 ${ck} 天(紫色底)· 点日期看当天详情</div>`;
+}
+const dayHtml = (d, r) => {
+  const rows = [...r.logs.map(logRow),
+    ...r.study.map(x => `<div class="row"><div>📚 ${esc(x.subject)} · ${esc(x.kind)}${x.note ? `<small>${esc(x.note)}</small>` : ''}</div><b>${esc(x.score) || '✓'}</b></div>`),
+    ...r.focus.map(x => `<div class="row"><div>⏱ ${esc(x.task)}</div><b class="p">${x.minutes}分</b></div>`)];
+  return `<h3>${d}${r.checkin ? ' · 已打卡 ✓' : ''}</h3><div class="list" style="text-align:left;max-height:50vh;overflow:auto">${rows.join('') || '<div class="empty">这天没有记录</div>'}</div>`;
+};
 
 // ---------- 交互 ----------
 document.addEventListener('click', async e => {
@@ -129,7 +155,15 @@ document.addEventListener('click', async e => {
     else if (a === 'ftask') { F.task = t.dataset.v; render(); }
     else if (a === 'fmin') modal(`<h3>专注时长</h3><div class="chips" style="justify-content:center;margin-bottom:6px">${[10, 15, 20, 30, 45, 60].map(m => `<button class="chip" data-a="setmin" data-v="${m}">${m} 分钟</button>`).join('')}</div>`);
     else if (a === 'setmin') { F.minutes = +t.dataset.v; close(); render(); }
-    else if (a === 'mf') { meFilter = t.dataset.v; render(); }
+    else if (a === 'mv') { meV = t.dataset.v; render(); }
+    else if (a === 'cm') { const [y, m] = calM.split('-').map(Number), d = new Date(y, m - 1 + +t.dataset.n, 1); calM = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; render(); }
+    else if (a === 'day') modal(dayHtml(t.dataset.d, await api(`/day?childId=${S.cid}&d=${t.dataset.d}`)));
+    else if (a === 'stf') { stF[t.dataset.k] = t.dataset.v; render(); }
+    else if (a === 'stadd') {
+      const opt = (arr, sel) => arr.map(v => `<option ${v === sel ? 'selected' : ''}>${esc(v)}</option>`).join('');
+      modal(`<h3>记录学习</h3><select id="ss">${opt(S.settings.subjects || [], stF.subject)}</select><select id="sk">${opt(S.settings.kinds || [], stF.kind)}</select><input id="sc" placeholder="成绩(如 95 / A+ / 优,可不填)"><input id="sd" type="date" value="${S.today}"><input id="sn" placeholder="备注(可不填)">`,
+        async () => { await api('/study', 'POST', { childId: S.cid, subject: $('#ss').value, kind: $('#sk').value, score: $('#sc').value, d: $('#sd').value, note: $('#sn').value }); toast('已记录'); render(); });
+    }
     else if (a === 'switch') {
       modal(`<h3>切换孩子</h3><div class="chips" style="justify-content:center">${S.children.map(c => `<button class="chip ${c.id === S.cid ? 'on' : ''}" data-a="pick" data-id="${c.id}">${esc(c.name)}</button>`).join('')}</div>`);
     }
