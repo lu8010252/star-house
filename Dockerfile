@@ -7,5 +7,5 @@ RUN npm install --omit=dev --no-audit --no-fund
 COPY server.js ./
 COPY public ./public
 VOLUME /data
-EXPOSE 3000
+EXPOSE 8020
 CMD ["node", "server.js"]
