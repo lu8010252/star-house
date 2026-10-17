@@ -41,6 +41,8 @@ function defaults() {
 }
 let db;
 try { db = Object.assign(defaults(), JSON.parse(fs.readFileSync(DB_FILE, 'utf8'))); } catch { db = defaults(); }
+// 清理孤儿打卡:积分记录已被撤销、但打卡记录还在的(旧版撤销只回退积分)
+db.checkins = db.checkins.filter(k => db.logs.some(l => l.type === 'checkin' && l.childId === k.childId && l.d === k.d));
 db.settings = Object.assign(defaults().settings, db.settings); // 老数据补新设置项
 const PRESET = { '路心语': '/avatars/girl-a.svg', '路依依': '/avatars/girl-b.svg' };
 for (const c of db.children) if (!c.avatar && PRESET[c.name]) c.avatar = PRESET[c.name];
@@ -241,6 +243,7 @@ app.delete('/api/logs/:id', wrap(req => { // 撤销一条记录并回退积分
     const ri = db.redeems.findIndex(x => x.id === l.ref);
     if (ri >= 0) { const it = db.shop.find(x => x.id === db.redeems[ri].itemId); if (it && it.stock != null) it.stock++; db.redeems.splice(ri, 1); }
   }
+  if (l.type === 'checkin') db.checkins = db.checkins.filter(k => !(k.childId === l.childId && k.d === l.d)); // 撤销打卡:同时清掉打卡次数
   db.logs.splice(i, 1);
 }));
 app.get('/api/focus', wrap(req => db.focus.filter(x => !req.query.childId || x.childId === +req.query.childId).slice(-100).reverse()));
