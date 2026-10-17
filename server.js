@@ -49,6 +49,7 @@ for (const r of db.redeems) if (r.done === undefined) r.done = true; // 老兑�
 let saving = false, dirty = false;
 function save() {
   if (saving) { dirty = true; return; }
+  scheduleBackup();
   saving = true;
   const tmp = DB_FILE + '.tmp';
   fs.writeFile(tmp, JSON.stringify(db), err => {
@@ -56,6 +57,27 @@ function save() {
     saving = false;
     if (dirty) { dirty = false; save(); }
   });
+}
+// ---------- 自动备份 ----------
+const BAK = path.join(DATA, 'backups');
+fs.mkdirSync(BAK, { recursive: true });
+let bakTimer = null;
+function writeBackup(name) {
+  try { fs.writeFileSync(path.join(BAK, name), JSON.stringify(db)); } catch (e) { console.error('备份失败', e.message); }
+}
+function pruneBackups() {
+  try {
+    const f = fs.readdirSync(BAK).filter(x => /^db-\d{4}-\d{2}-\d{2}\.json$/.test(x)).sort();
+    for (const x of f.slice(0, Math.max(0, f.length - 30))) fs.unlinkSync(path.join(BAK, x));
+    for (const re of [/^db-manual-/, /^db-before-restore-/]) { // 手动/恢复前的副本各留最近 10 份
+      const g = fs.readdirSync(BAK).filter(x => re.test(x)).sort();
+      for (const x of g.slice(0, Math.max(0, g.length - 10))) fs.unlinkSync(path.join(BAK, x));
+    }
+  } catch {}
+}
+function scheduleBackup() { // 数据有变动 → 1 分钟后更新当天快照(合并频繁操作)
+  if (bakTimer) return;
+  bakTimer = setTimeout(() => { bakTimer = null; writeBackup(`db-${dstr()}.json`); pruneBackups(); }, 60000);
 }
 const pad = n => String(n).padStart(2, '0');
 const dstr = (t = Date.now()) => { const x = new Date(t); return `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}`; };
@@ -273,16 +295,23 @@ app.get('/api/today', wrap(() => {
 
 // 备份:导出 / 导入整库(头像图片文件在 uploads 目录,需另行备份)
 app.get('/api/export', wrap(() => db));
-app.post('/api/import', wrap(req => {
-  const o = req.body && req.body.db;
+function applyDb(o) {
   need(o && Array.isArray(o.children) && Array.isArray(o.rules) && Array.isArray(o.logs), '备份文件格式不对');
-  try { if (fs.existsSync(DB_FILE)) fs.copyFileSync(DB_FILE, DB_FILE + '.bak-' + Date.now()); } catch {}
+  writeBackup(`db-before-restore-${Date.now()}.json`); // 覆盖前先留一份当前数据
   const n = Object.assign(defaults(), o); n.settings = Object.assign(defaults().settings, o.settings);
   const mx = Math.max(100, ...['children', 'rules', 'shop', 'logs', 'redeems', 'focus', 'study'].flatMap(k => (n[k] || []).map(x => +x.id || 0)));
   n.seq = Math.max(+n.seq || 0, mx);
   for (const r of n.redeems || []) if (r.done === undefined) r.done = true;
-  db = n; return { ok: true };
-}));
+  db = n;
+}
+app.post('/api/import', wrap(req => { applyDb(req.body && req.body.db); }));
+
+// 自动备份列表 / 立即备份 / 下载 / 恢复
+const bakName = n => { need(/^db-[\w-]+\.json$/.test(n), '备份名不对'); return n; };
+app.get('/api/backups', wrap(() => fs.readdirSync(BAK).filter(x => /^db-[\w-]+\.json$/.test(x)).map(x => { const st = fs.statSync(path.join(BAK, x)); return { name: x, size: st.size, ts: st.mtimeMs }; }).sort((a, b) => b.ts - a.ts)));
+app.post('/api/backups', wrap(() => { const n = `db-manual-${Date.now()}.json`; writeBackup(n); return { name: n }; }));
+app.get('/api/backups/:name', wrap(req => JSON.parse(fs.readFileSync(path.join(BAK, bakName(req.params.name)), 'utf8'))));
+app.post('/api/backups/:name/restore', wrap(req => { applyDb(JSON.parse(fs.readFileSync(path.join(BAK, bakName(req.params.name)), 'utf8'))); }));
 
 // 月度统计
 app.get('/api/stats', wrap(req => {
@@ -320,4 +349,5 @@ app.post('/api/upload', wrap(req => {
   return { url: '/uploads/' + name };
 }));
 
+writeBackup(`db-${dstr()}.json`); pruneBackups();
 app.listen(PORT, () => console.log('星星屋 running on :' + PORT));

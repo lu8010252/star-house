@@ -134,7 +134,7 @@ S.lf = { from: '', to: '', kind: '' };
 async function logs() {
   if (!S.cid) return '<div class="box">先添加孩子</div>';
   const f = S.lf, qs = `childId=${S.cid}&limit=${f.from || f.to || f.kind ? 500 : 150}${f.from ? '&from=' + f.from : ''}${f.to ? '&to=' + f.to : ''}${f.kind ? '&kind=' + f.kind : ''}`;
-  const l = await api('/logs?' + qs), rs = S.rules.filter(r => !r.off);
+  const l = await api('/logs?' + qs), rs = S.rules.filter(r => !r.off && (!(r.kids || []).length || r.kids.includes(S.cid)));
   const opt = ([v, t]) => `<option value="${v}" ${f.kind === v ? 'selected' : ''}>${t}</option>`;
   const sum = l.filter(x => x.type !== 'redeem').reduce((a, x) => a + x.delta, 0);
   return `<div class="box"><h3>手动加扣分</h3>
@@ -153,7 +153,7 @@ async function study() {
 }
 
 // ---- 设置 ----
-const set = () => { const s = S.settings; return `<div class="box"><h3>系统设置</h3>
+const set = async () => { const s = S.settings, bk = await api('/backups'); return `<div class="box"><h3>系统设置</h3>
   <div class="frow"><small>每日打卡得分</small><input id="s1" type="number" value="${s.checkinPoints}"></div>
   <div class="frow"><small>专注每 10 分钟得分</small><input id="s3" type="number" value="${s.focusPer10}"></div>
   <div class="frow"><small>专注任务(逗号分隔)</small><input id="s4" value="${esc((s.focusTasks || []).join(','))}"></div>
@@ -161,8 +161,9 @@ const set = () => { const s = S.settings; return `<div class="box"><h3>系统设
   <div class="frow"><small>学习类型(逗号分隔)</small><input id="s6" value="${esc((s.kinds || []).join(','))}"></div>
   <div style="margin-top:14px"><button class="b" data-a="setsave">保存设置</button></div>
   <p class="hint">登录密码在 docker-compose.yml 的 PASSWORD 中修改。</p></div>
-  <div class="box"><h3>数据备份</h3><div class="bar"><button class="b" data-a="export">导出备份</button><button class="b g" data-a="import">导入备份</button></div>
-  <p class="hint">备份包含孩子、规则、商城、全部积分与学习记录(一个 json 文件)。导入会覆盖当前数据,服务器会自动留一份旧数据副本。孩子的照片文件在数据目录的 uploads 里,换服务器时请一并拷贝。</p></div>`; };
+  <div class="box"><h3>数据备份</h3><div class="bar"><button class="b" data-a="bknow">立即备份</button><button class="b g" data-a="export">导出到电脑</button><button class="b g" data-a="import">导入备份文件</button></div>
+  <p class="hint">已开启自动备份:数据有变动后约 1 分钟内更新当天的备份,每天一份、保留最近 30 天,存放在数据目录的 backups 文件夹(跟着 docker 数据卷走)。恢复前会自动再留一份当前数据。孩子的照片文件在 uploads 里,不在备份内,换服务器时请一并拷贝。</p>
+  <table>${bk.map(x => `<tr><td>${esc(x.name.replace(/^db-|\.json$/g, ''))}</td><td>${fmtTime(x.ts)}</td><td>${Math.max(1, Math.round(x.size / 1024))} KB</td><td><button class="b g" data-a="bkdl" data-n="${esc(x.name)}">下载</button> <button class="b r" data-a="bkrs" data-n="${esc(x.name)}">恢复</button></td></tr>`).join('') || '<tr><td>暂无备份</td></tr>'}</table></div>`; };
 
 // ---- 事件 ----
 document.addEventListener('click', async e => {
@@ -191,6 +192,9 @@ document.addEventListener('click', async e => {
     }
     else if (a === 'toggle') { const r = S.rules.find(x => x.id === +row.dataset.id); await api('/rules/' + r.id, 'PUT', { off: !r.off }); toast(r.off ? '已启用' : '已停用'); await load(); }
     else if (a === 'done') { await api('/redeems/' + t.dataset.id, 'PUT', { done: true }); toast('已标记兑现'); render(); }
+    else if (a === 'bknow') { await api('/backups', 'POST'); toast('已备份'); render(); }
+    else if (a === 'bkdl') { const j = await api('/backups/' + t.dataset.n), x = document.createElement('a'); x.href = URL.createObjectURL(new Blob([JSON.stringify(j)], { type: 'application/json' })); x.download = t.dataset.n; x.click(); }
+    else if (a === 'bkrs') { if (confirm('用「' + t.dataset.n + '」覆盖当前全部数据?(会先自动留一份当前数据)')) { await api('/backups/' + t.dataset.n + '/restore', 'POST'); toast('已恢复'); await load(); } }
     else if (a === 'export') { const j = await api('/export'), x = document.createElement('a'); x.href = URL.createObjectURL(new Blob([JSON.stringify(j)], { type: 'application/json' })); x.download = `star-house-${new Date().toISOString().slice(0, 10)}.json`; x.click(); toast('已导出'); }
     else if (a === 'import') {
       const i = document.createElement('input'); i.type = 'file'; i.accept = '.json,application/json';
