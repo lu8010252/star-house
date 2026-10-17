@@ -21,7 +21,10 @@ function hero(tab, extra = '') {
 }
 
 // ---------- 弹窗 ----------
+// 返回键逻辑:弹窗/标签页都进浏览历史,返回键先关弹窗、再回上一个标签,最后才退出
+let mOpen = false, ignorePop = 0;
 function modal(html, onOk, okText = '确定') {
+  if (!mOpen) { mOpen = true; history.pushState({ m: 1 }, ''); }
   const m = $('#modal'); m.innerHTML = `<div class="mbox">${html}<div class="mb"><button data-x="no">${onOk ? '取消' : '关闭'}</button>${onOk ? `<button class="ok" data-x="ok">${okText}</button>` : ''}</div></div>`;
   m.onclick = async e => {
     const x = e.target.dataset.x;
@@ -29,7 +32,18 @@ function modal(html, onOk, okText = '确定') {
     if (x === 'ok') { try { if ((await onOk()) !== false) close(); } catch (er) { toast(er.message); } }
   };
 }
-const close = () => { $('#modal').innerHTML = ''; };
+function closeModal(fromPop) {
+  $('#modal').innerHTML = '';
+  if (mOpen) { mOpen = false; if (!fromPop) { ignorePop++; history.back(); } }
+}
+const close = () => closeModal(false);
+addEventListener('popstate', e => {
+  if (ignorePop > 0) { ignorePop--; return; }
+  if (mOpen) return closeModal(true);
+  S.tab = (e.state && e.state.tab) || 'score'; store.set('xt_tab', S.tab); render();
+});
+// 记住的标签不是「赏罚」时,垫一层首页,这样返回键先回首页而不是直接退出
+if (S.tab !== 'score') { history.replaceState({ tab: 'score' }, ''); history.pushState({ tab: S.tab }, ''); } else history.replaceState({ tab: 'score' }, '');
 const ask = (title, msg, fn) => modal(`<h3>${title}</h3><p>${msg}</p>`, fn);
 
 // ---------- 页面 ----------
@@ -153,7 +167,7 @@ const dayHtml = (d, r) => {
 // ---------- 交互 ----------
 document.addEventListener('click', async e => {
   const t = e.target.closest('[data-t],[data-a]'); if (!t) return;
-  if (t.dataset.t) { S.tab = t.dataset.t; store.set('xt_tab', S.tab); return render(); }
+  if (t.dataset.t) { if (S.tab !== t.dataset.t) history.pushState({ tab: t.dataset.t }, ''); S.tab = t.dataset.t; store.set('xt_tab', S.tab); return render(); }
   const a = t.dataset.a, id = +t.dataset.id;
   try {
     if (a === 'grp') { const o = grpOpen(); o[t.dataset.k] = o[t.dataset.k] === false; store.set('xt_grp', JSON.stringify(o)); render(); }
