@@ -21,10 +21,14 @@ function hero(tab, extra = '') {
 }
 
 // ---------- 弹窗 ----------
-// 返回键逻辑:弹窗/标签页都进浏览历史,返回键先关弹窗、再回上一个标签,最后才退出
+// 返回键逻辑:先关弹窗 → 退出二级页 → 回「赏罚」首页 → 退出
+// 网页:用浏览历史(返回键/手势);APK(Capacitor):直接拦截系统返回键(需 @capacitor/app 插件)
 let mOpen = false, ignorePop = 0;
+const CapApp = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+const hist = !CapApp;
+const pushH = () => { if (hist) history.pushState({ tab: S.tab, me: meV }, ''); };
 function modal(html, onOk, okText = '确定') {
-  if (!mOpen) { mOpen = true; history.pushState({ m: 1 }, ''); }
+  if (!mOpen) { mOpen = true; pushH(); }
   const m = $('#modal'); m.innerHTML = `<div class="mbox">${html}<div class="mb"><button data-x="no">${onOk ? '取消' : '关闭'}</button>${onOk ? `<button class="ok" data-x="ok">${okText}</button>` : ''}</div></div>`;
   m.onclick = async e => {
     const x = e.target.dataset.x;
@@ -34,16 +38,22 @@ function modal(html, onOk, okText = '确定') {
 }
 function closeModal(fromPop) {
   $('#modal').innerHTML = '';
-  if (mOpen) { mOpen = false; if (!fromPop) { ignorePop++; history.back(); } }
+  if (mOpen) { mOpen = false; if (hist && !fromPop) { ignorePop++; history.back(); } }
 }
 const close = () => closeModal(false);
 addEventListener('popstate', e => {
+  if (!hist) return;
   if (ignorePop > 0) { ignorePop--; return; }
   if (mOpen) return closeModal(true);
-  S.tab = (e.state && e.state.tab) || 'score'; store.set('xt_tab', S.tab); render();
+  const st = e.state || {}; S.tab = st.tab || 'score'; meV = st.me || ''; store.set('xt_tab', S.tab); render();
 });
-// 记住的标签不是「赏罚」时,垫一层首页,这样返回键先回首页而不是直接退出
-if (S.tab !== 'score') { history.replaceState({ tab: 'score' }, ''); history.pushState({ tab: S.tab }, ''); } else history.replaceState({ tab: 'score' }, '');
+function goBack() { // APK 返回键:返回 true 表示已处理
+  if (mOpen) { closeModal(false); return true; }
+  if (S.tab === 'me' && meV) { meV = ''; render(); return true; }
+  if (S.tab !== 'score') { S.tab = 'score'; store.set('xt_tab', S.tab); render(); return true; }
+  return false;
+}
+if (CapApp) CapApp.addListener('backButton', () => { if (!goBack()) CapApp.exitApp(); });
 const ask = (title, msg, fn) => modal(`<h3>${title}</h3><p>${msg}</p>`, fn);
 
 // ---------- 页面 ----------
@@ -167,7 +177,7 @@ const dayHtml = (d, r) => {
 // ---------- 交互 ----------
 document.addEventListener('click', async e => {
   const t = e.target.closest('[data-t],[data-a]'); if (!t) return;
-  if (t.dataset.t) { if (S.tab !== t.dataset.t) history.pushState({ tab: t.dataset.t }, ''); S.tab = t.dataset.t; store.set('xt_tab', S.tab); return render(); }
+  if (t.dataset.t) { const ch = S.tab !== t.dataset.t; S.tab = t.dataset.t; store.set('xt_tab', S.tab); if (ch) pushH(); return render(); }
   const a = t.dataset.a, id = +t.dataset.id;
   try {
     if (a === 'grp') { const o = grpOpen(); o[t.dataset.k] = o[t.dataset.k] === false; store.set('xt_grp', JSON.stringify(o)); render(); }
@@ -180,7 +190,10 @@ document.addEventListener('click', async e => {
     else if (a === 'ftask') { F.task = t.dataset.v; render(); }
     else if (a === 'fmin') modal(`<h3>专注时长</h3><div class="chips" style="justify-content:center;margin-bottom:6px">${[10, 15, 20, 30, 45, 60].map(m => `<button class="chip" data-a="setmin" data-v="${m}">${m} 分钟</button>`).join('')}</div>`);
     else if (a === 'setmin') { F.minutes = +t.dataset.v; close(); render(); }
-    else if (a === 'mv') { meV = t.dataset.v; render(); }
+    else if (a === 'mv') {
+      if (!t.dataset.v && hist && history.state && history.state.me) return history.back(); // 「‹ 返回」= 浏览器返回
+      meV = t.dataset.v; if (meV) pushH(); render();
+    }
     else if (a === 'cm') { const [y, m] = calM.split('-').map(Number), d = new Date(y, m - 1 + +t.dataset.n, 1); calM = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; render(); }
     else if (a === 'day') modal(dayHtml(t.dataset.d, await api(`/day?childId=${S.cid}&d=${t.dataset.d}`)));
     else if (a === 'stf') { stF[t.dataset.k] = t.dataset.v; render(); }
@@ -198,5 +211,6 @@ document.addEventListener('click', async e => {
   } catch (er) { toast(er.message); }
 });
 
+if (hist) { history.replaceState({ tab: 'score', me: '' }, ''); if (S.tab !== 'score') history.pushState({ tab: S.tab, me: '' }, ''); } // 记住的标签不是首页时垫一层,返回先回首页
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 requireLogin('星星屋', refresh);
