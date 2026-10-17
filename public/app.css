@@ -77,3 +77,9 @@
 .dc { aspect-ratio: 1 / 1.15; border-radius: 12px; background: #faf7ff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 0; font-size: 14px; }
 .dc small { font-size: 10px; font-weight: 800; } .dc small.p { color: #1e9c78; } .dc small.n { color: #e0455e; } .dc em { font-size: 10px; font-style: normal; line-height: 1; }
 .dc.ck { background: linear-gradient(135deg, #e5d9ff, #ffd9ec); } .dc.today { outline: 2px solid var(--yellow); }
+
+/* 规则分组 / 商品备注 */
+.grph { display: flex; width: 100%; justify-content: space-between; align-items: center; margin: 12px 0 8px; padding: 8px 14px; border-radius: 14px; background: #fff; border: 2px solid var(--purple-l); font-weight: 800; color: var(--purple-d); text-align: left; }
+.grph small { background: var(--purple-l); border-radius: 10px; padding: 1px 9px; }
+.card .nt { display: block; font-weight: 600; font-size: 12px; color: var(--ink2); margin-top: 2px; }
+.card.off { opacity: .45; filter: grayscale(.6); }

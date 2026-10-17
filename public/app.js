@@ -46,12 +46,22 @@ function render() {
   if (r && r.then) r.then(h => { $('#page').innerHTML = h; }); else $('#page').innerHTML = r;
 }
 
+const grpOpen = () => { try { return JSON.parse(store.get('xt_grp') || '{}'); } catch { return {}; } };
 function score() {
-  const card = r => `<button class="card ${r.type}" data-a="rule" data-id="${r.id}"><span class="name">${esc(r.name)}</span><span class="pt">${r.type === 'bad' ? '-' : '+'}${r.points}</span></button>`;
-  const g = S.rules.filter(r => r.type === 'good'), b = S.rules.filter(r => r.type === 'bad');
+  const card = r => `<button class="card ${r.type}" data-a="rule" data-id="${r.id}"><span class="name">${r.icon ? esc(r.icon) + ' ' : ''}${esc(r.name)}</span><span class="pt">${r.type === 'bad' ? '-' : '+'}${r.points}</span></button>`;
+  // 已停用的不显示;限定孩子的规则只对对应孩子显示
+  const vis = S.rules.filter(r => !r.off && !(r.kids || []).length || (!r.off && r.kids.includes(S.cid)));
+  const op = grpOpen();
+  const sect = (list, tp) => {
+    const m = new Map(); for (const r of list) { const k = r.group || ''; (m.get(k) || m.set(k, []).get(k)).push(r); }
+    if (m.size === 1 && m.has('')) return `<div class="grid">${list.map(card).join('')}</div>`;
+    return [...m].map(([k, rs]) => { const key = tp + ':' + k, open = op[key] !== false;
+      return `<button class="grph" data-a="grp" data-k="${esc(key)}"><span>${open ? '▾' : '▸'} ${esc(k || '其他')}</span><small>${rs.length}</small></button>${open ? `<div class="grid">${rs.map(card).join('')}</div>` : ''}`; }).join('');
+  };
+  const g = vis.filter(r => r.type !== 'bad'), b = vis.filter(r => r.type === 'bad');
   return hero('score') +
-    `<div class="sec"><span class="tag good">⭐ 表现不错(${g.length})</span></div><div class="grid">${g.map(card).join('')}</div>` +
-    `<div class="sec"><span class="tag bad">❗ 有待提高(${b.length})</span></div><div class="grid">${b.map(card).join('')}</div>` +
+    `<div class="sec"><span class="tag good">⭐ 表现不错(${g.length})</span></div>${sect(g, 'good')}` +
+    `<div class="sec"><span class="tag bad">❗ 有待提高(${b.length})</span></div>${sect(b, 'bad')}` +
     `<div class="sec"><span class="tag flex">✏️ 灵活记录</span></div><div class="grid">
       <button class="card good" data-a="manual" data-s="1"><span class="name">手动加分</span><span class="pt">+</span></button>
       <button class="card bad" data-a="manual" data-s="-1"><span class="name">手动扣分</span><span class="pt">-</span></button></div>`;
@@ -59,10 +69,16 @@ function score() {
 
 function shop() {
   const s = S.settings;
+  const item = i => {
+    const used = (S.wk || []).filter(w => w.childId === S.cid && w.itemId === i.id).length;
+    const out = i.stock != null && i.stock <= 0, lim = i.weekly > 0 && used >= i.weekly;
+    const note = out ? '已兑完' : lim ? '本周已兑够' : [i.stock != null ? `剩 ${i.stock} 件` : '', i.weekly > 0 ? `本周还可 ${i.weekly - used} 次` : ''].filter(Boolean).join(' · ');
+    return `<button class="card shop ${out || lim ? 'off' : ''}" data-a="redeem" data-id="${i.id}"><span class="name">${i.icon ? esc(i.icon) + ' ' : ''}${esc(i.name)}${note ? `<small class="nt">${note}</small>` : ''}</span><span class="pt">⭐ ${i.cost}</span></button>`;
+  };
   return hero('shop') +
     `<div class="sec">🎀 快乐补给站</div><div class="big">
       <button class="card shop" data-a="checkin"><span class="em">✅</span><b>每日打卡</b><small>+${s.checkinPoints} 分</small></button></div>` +
-    `<div class="sec">🛍 积分兑换</div><div class="grid">${S.shop.map(i => `<button class="card shop" data-a="redeem" data-id="${i.id}"><span class="name">${esc(i.name)}</span><span class="pt">⭐ ${i.cost}</span></button>`).join('') || '<div class="empty">家长后台还没添加商品</div>'}</div>`;
+    `<div class="sec">🛍 积分兑换</div><div class="grid">${S.shop.map(item).join('') || '<div class="empty">家长后台还没添加商品</div>'}</div>`;
 }
 
 const fmtT = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
@@ -140,7 +156,8 @@ document.addEventListener('click', async e => {
   if (t.dataset.t) { S.tab = t.dataset.t; store.set('xt_tab', S.tab); return render(); }
   const a = t.dataset.a, id = +t.dataset.id;
   try {
-    if (a === 'rule') { const r = S.rules.find(x => x.id === id); ask(esc(r.name), `${r.type === 'bad' ? '扣' : '加'} ${r.points} 分,确认吗?`, async () => { await api('/score', 'POST', { childId: S.cid, ruleId: id }); toast(`${r.type === 'bad' ? '-' : '+'}${r.points}`); refresh(); }); }
+    if (a === 'grp') { const o = grpOpen(); o[t.dataset.k] = o[t.dataset.k] === false; store.set('xt_grp', JSON.stringify(o)); render(); }
+    else if (a === 'rule') { const r = S.rules.find(x => x.id === id); ask(esc(r.name), `${r.type === 'bad' ? '扣' : '加'} ${r.points} 分,确认吗?`, async () => { await api('/score', 'POST', { childId: S.cid, ruleId: id }); toast(`${r.type === 'bad' ? '-' : '+'}${r.points}`); refresh(); }); }
     else if (a === 'manual') { const s = +t.dataset.s; modal(`<h3>手动${s > 0 ? '加' : '扣'}分</h3><input id="mp" type="number" inputmode="numeric" placeholder="分数"><input id="mr" placeholder="原因(可不填)">`, async () => { const n = Math.abs(+$('#mp').value | 0); if (!n) throw new Error('请输入分数'); await api('/score', 'POST', { childId: S.cid, delta: s * n, reason: $('#mr').value }); refresh(); }); }
     else if (a === 'redeem') { const i = S.shop.find(x => x.id === id); ask('兑换', `用 ${i.cost} 分兑换「${esc(i.name)}」?`, async () => { await api('/redeem', 'POST', { childId: S.cid, itemId: id }); toast('兑换成功 🎉'); refresh(); }); }
     else if (a === 'checkin') { const r = await api('/checkin', 'POST', { childId: S.cid }); toast(`打卡成功 +${r.got}`); refresh(); }

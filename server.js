@@ -45,6 +45,7 @@ db.settings = Object.assign(defaults().settings, db.settings); // 老数据补�
 const PRESET = { '路心语': '/avatars/girl-a.svg', '路依依': '/avatars/girl-b.svg' };
 for (const c of db.children) if (!c.avatar && PRESET[c.name]) c.avatar = PRESET[c.name];
 delete db.prizes; delete db.settings.lotteryCost; // 已移除抽奖功能
+for (const r of db.redeems) if (r.done === undefined) r.done = true; // 老兑换记录视为已兑现
 let saving = false, dirty = false;
 function save() {
   if (saving) { dirty = true; return; }
@@ -59,6 +60,8 @@ function save() {
 const pad = n => String(n).padStart(2, '0');
 const dstr = (t = Date.now()) => { const x = new Date(t); return `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}`; };
 const nid = () => ++db.seq;
+const monday = () => dstr(Date.now() - ((new Date().getDay() + 6) % 7) * 864e5); // 本周一(周一为一周开始)
+const truthy = v => v === true || v === 'true' || v === 1 || v === '1';
 const child = id => db.children.find(c => c.id === +id);
 
 function addLog(c, delta, reason, type) {
@@ -70,7 +73,7 @@ function addLog(c, delta, reason, type) {
 
 // ---------- 服务 ----------
 const app = express();
-app.use(express.json({ limit: '8mb' }));
+app.use(express.json({ limit: '30mb' }));
 app.use('/uploads', express.static(UPLOADS, { maxAge: '30d' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -89,6 +92,7 @@ app.get('/api/state', wrap(() => ({
   children: db.children, rules: db.rules, shop: db.shop,
   settings: db.settings, today: dstr(),
   checkins: db.checkins.filter(c => c.d.slice(0, 7) >= dstr(Date.now() - 62 * 864e5).slice(0, 7)),
+  wk: db.redeems.filter(r => r.d >= monday()).map(r => ({ childId: r.childId, itemId: r.itemId })), // 本周兑换次数(限兑用)
 })));
 
 // 孩子
@@ -111,8 +115,16 @@ app.delete('/api/children/:id', wrap(req => {
 
 // 规则 / 商城 / 奖品 通用增删改
 const colls = {
-  rules: o => ({ name: String(o.name || '').trim(), type: o.type === 'bad' ? 'bad' : 'good', points: Math.abs(+o.points || 0) }),
-  shop: o => ({ name: String(o.name || '').trim(), cost: Math.abs(+o.cost || 0) }),
+  rules: o => ({
+    name: String(o.name || '').trim(), type: o.type === 'bad' ? 'bad' : 'good', points: Math.abs(+o.points || 0),
+    icon: String(o.icon || '').trim().slice(0, 4), group: String(o.group || '').trim().slice(0, 10), off: truthy(o.off),
+    kids: (Array.isArray(o.kids) ? o.kids : []).map(Number).filter(Boolean), // 空=所有孩子适用
+  }),
+  shop: o => ({
+    name: String(o.name || '').trim(), cost: Math.abs(+o.cost || 0), icon: String(o.icon || '').trim().slice(0, 4),
+    stock: o.stock === '' || o.stock == null ? null : Math.max(0, Math.trunc(+o.stock) || 0), // null=不限库存
+    weekly: Math.max(0, Math.trunc(+o.weekly) || 0), // 每周每个孩子限兑次数,0=不限
+  }),
 };
 // 排序:前端传完整 id 顺序(须在 /:id 路由之前注册)
 for (const k of Object.keys(colls)) {
@@ -131,27 +143,36 @@ for (const [k, norm] of Object.entries(colls)) {
   app.delete(`/api/${k}/:id`, wrap(req => { db[k] = db[k].filter(x => x.id !== +req.params.id); }));
 }
 
-// 加扣分
+// 加扣分(childIds 可批量)
 app.post('/api/score', wrap(req => {
-  const c = child(req.body.childId); need(c, '孩子不存在');
-  if (req.body.ruleId) {
-    const r = db.rules.find(x => x.id === +req.body.ruleId); need(r, '规则不存在');
-    addLog(c, r.type === 'bad' ? -r.points : r.points, r.name, 'rule');
-  } else {
-    const delta = Math.trunc(+req.body.delta); need(delta, '分数不对');
-    addLog(c, delta, String(req.body.reason || (delta > 0 ? '手动加分' : '手动扣分')).slice(0, 40), 'manual');
+  const ids = Array.isArray(req.body.childIds) && req.body.childIds.length ? req.body.childIds : [req.body.childId];
+  const kids = ids.map(id => { const c = child(id); need(c, '孩子不存在'); return c; });
+  let r = null, delta = 0;
+  if (req.body.ruleId) { r = db.rules.find(x => x.id === +req.body.ruleId); need(r, '规则不存在'); need(!r.off, '该规则已停用'); }
+  else { delta = Math.trunc(+req.body.delta); need(delta, '分数不对'); }
+  for (const c of kids) {
+    if (r) addLog(c, r.type === 'bad' ? -r.points : r.points, r.name, 'rule');
+    else addLog(c, delta, String(req.body.reason || (delta > 0 ? '手动加分' : '手动扣分')).slice(0, 40), 'manual');
   }
-  return { points: c.points };
+  return { points: kids[0].points };
 }));
 
-// 兑换
+// 兑换(库存 / 每周限兑)
 app.post('/api/redeem', wrap(req => {
   const c = child(req.body.childId); need(c, '孩子不存在');
   const it = db.shop.find(x => x.id === +req.body.itemId); need(it, '商品不存在');
+  need(it.stock == null || it.stock > 0, '这个已经兑完啦');
+  if (it.weekly > 0) need(db.redeems.filter(r => r.childId === c.id && r.itemId === it.id && r.d >= monday()).length < it.weekly, `这个本周最多兑 ${it.weekly} 次`);
   need(c.points >= it.cost, '积分不够哦');
-  addLog(c, -it.cost, '兑换:' + it.name, 'redeem');
-  db.redeems.push({ id: nid(), childId: c.id, name: it.name, cost: it.cost, ts: Date.now(), d: dstr() });
+  const rd = { id: nid(), childId: c.id, itemId: it.id, name: it.name, cost: it.cost, ts: Date.now(), d: dstr(), done: false };
+  const l = addLog(c, -it.cost, '兑换:' + it.name, 'redeem'); l.ref = rd.id;
+  db.redeems.push(rd);
+  if (it.stock != null) it.stock--;
   return { points: c.points, name: it.name };
+}));
+app.put('/api/redeems/:id', wrap(req => { // 标记已兑现(奖励已发给孩子)
+  const r = db.redeems.find(x => x.id === +req.params.id); need(r, '记录不存在');
+  r.done = req.body.done !== false; return r;
 }));
 
 // 打卡
@@ -180,13 +201,22 @@ app.get('/api/logs', wrap(req => {
   const { childId, type, limit } = req.query;
   let l = db.logs;
   if (childId) l = l.filter(x => x.childId === +childId);
-  if (type === 'redeem') l = l.filter(x => x.type === 'redeem');
+  const { from, to, kind } = req.query;
+  if (type === 'redeem' || kind === 'redeem') l = l.filter(x => x.type === 'redeem');
+  else if (kind === 'gain') l = l.filter(x => x.delta > 0 && x.type !== 'redeem');
+  else if (kind === 'loss') l = l.filter(x => x.delta < 0 && x.type !== 'redeem');
+  if (from) l = l.filter(x => x.d >= from);
+  if (to) l = l.filter(x => x.d <= to);
   return l.slice(-(+limit || 100)).reverse();
 }));
 app.delete('/api/logs/:id', wrap(req => { // 撤销一条记录并回退积分
   const i = db.logs.findIndex(x => x.id === +req.params.id); need(i >= 0, '记录不存在');
   const l = db.logs[i], c = child(l.childId);
   if (c) c.points -= l.delta;
+  if (l.ref) { // 撤销兑换:删兑换记录并恢复库存
+    const ri = db.redeems.findIndex(x => x.id === l.ref);
+    if (ri >= 0) { const it = db.shop.find(x => x.id === db.redeems[ri].itemId); if (it && it.stock != null) it.stock++; db.redeems.splice(ri, 1); }
+  }
   db.logs.splice(i, 1);
 }));
 app.get('/api/focus', wrap(req => db.focus.filter(x => !req.query.childId || x.childId === +req.query.childId).slice(-100).reverse()));
@@ -225,6 +255,33 @@ app.get('/api/day', wrap(req => {
     logs: db.logs.filter(x => x.childId === c.id && x.d === d), study: db.study.filter(x => x.childId === c.id && x.d === d),
     focus: db.focus.filter(x => x.childId === c.id && x.d === d), checkin: db.checkins.some(x => x.childId === c.id && x.d === d),
   };
+}));
+
+// 今日概览:每个孩子今日得失/打卡,以及待兑现的奖励
+app.get('/api/today', wrap(() => {
+  const d = dstr();
+  return {
+    d,
+    kids: db.children.map(c => {
+      let gain = 0, loss = 0;
+      for (const l of db.logs) if (l.childId === c.id && l.d === d && l.type !== 'redeem') { if (l.delta > 0) gain += l.delta; else loss -= l.delta; }
+      return { id: c.id, name: c.name, points: c.points || 0, gain, loss, checked: db.checkins.some(x => x.childId === c.id && x.d === d) };
+    }),
+    pending: db.redeems.filter(r => !r.done).sort((a, b) => b.ts - a.ts).slice(0, 30).map(r => ({ ...r, child: child(r.childId)?.name || '' })),
+  };
+}));
+
+// 备份:导出 / 导入整库(头像图片文件在 uploads 目录,需另行备份)
+app.get('/api/export', wrap(() => db));
+app.post('/api/import', wrap(req => {
+  const o = req.body && req.body.db;
+  need(o && Array.isArray(o.children) && Array.isArray(o.rules) && Array.isArray(o.logs), '备份文件格式不对');
+  try { if (fs.existsSync(DB_FILE)) fs.copyFileSync(DB_FILE, DB_FILE + '.bak-' + Date.now()); } catch {}
+  const n = Object.assign(defaults(), o); n.settings = Object.assign(defaults().settings, o.settings);
+  const mx = Math.max(100, ...['children', 'rules', 'shop', 'logs', 'redeems', 'focus', 'study'].flatMap(k => (n[k] || []).map(x => +x.id || 0)));
+  n.seq = Math.max(+n.seq || 0, mx);
+  for (const r of n.redeems || []) if (r.done === undefined) r.done = true;
+  db = n; return { ok: true };
 }));
 
 // 月度统计

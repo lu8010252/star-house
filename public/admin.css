@@ -85,3 +85,20 @@ tr:hover td { background: #faf7ff; }
 .addbtn { margin-top: 8px; width: 100%; padding: 9px; border-radius: 12px; border: 2px dashed #d6caf5; background: transparent; color: var(--purple-d); font-weight: 700; }
 .addbtn:hover { background: var(--purple-l); }
 .empty2 { color: var(--ink2); text-align: center; padding: 14px 0; font-size: 13px; }
+
+/* ---- 规则/商品扩展 ---- */
+input[type=date] { padding: 8px 10px; border-radius: 12px; border: 2px solid var(--line); background: #fff; font: inherit; color: var(--ink); }
+.ck { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 12px; background: #faf7ff; border: 1px solid var(--line); font-size: 14px; cursor: pointer; }
+.frm { align-items: flex-end; }
+.f { display: flex; flex-direction: column; gap: 2px; } .f small { color: var(--ink2); font-size: 12px; } .f.ic input { width: 62px; text-align: center; } .f.nm { flex: 1; min-width: 130px; } .f.nm input { width: 100%; }
+.f input[type=number] { width: 100px; }
+.fx { flex-basis: 100%; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; } .fx small { color: var(--ink2); font-size: 12px; }
+.fb { display: flex; gap: 8px; margin-left: auto; }
+.tg { flex: none; display: flex; gap: 4px; } .tg em { font-style: normal; font-size: 11.5px; padding: 1px 7px; border-radius: 8px; background: var(--purple-l); color: var(--purple-d); white-space: nowrap; } .tg em.k { background: #e2efff; color: #3f86e0; } .tg em.x { background: #eee; color: #999; }
+.it.off { opacity: .55; } .it.off .nm { text-decoration: line-through; }
+@media (max-width: 560px) { .tg { display: none; } }
+/* 今日概览 */
+.today { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+.tk { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 14px; border-radius: 14px; background: linear-gradient(135deg, #f3edff, #fff0f7); border: 1px solid var(--line); } .tk b { font-size: 16px; } .tk .tp { color: #b07a00; font-weight: 800; } .tk .ok { color: #1e9c78; font-weight: 700; margin-left: auto; } .tk .no { color: var(--ink2); margin-left: auto; }
+.sub { margin: 16px 0 6px; font-size: 14px; } .sub small { background: var(--purple-l); border-radius: 10px; padding: 1px 8px; }
+.pd { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border-bottom: 1px dashed var(--line); } .pd small { color: var(--ink2); }
