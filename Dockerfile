@@ -1,6 +1,6 @@
 FROM node:22-alpine
 WORKDIR /app
-ENV TZ=Asia/Shanghai NODE_ENV=production DATA_DIR=/data
+ENV TZ=Asia/Shanghai NODE_ENV=production DATA_DIR=/data PORT=8020
 RUN apk add --no-cache tzdata
 COPY package.json ./
 RUN npm install --omit=dev --no-audit --no-fund

@@ -1,17 +1,29 @@
 name: Build APK
 
+# 触发方式:① 手动运行(可临时填服务器地址) ② 推送 v* 标签,如 git tag v1.0.0 && git push --tags
+# 服务器地址默认取仓库变量 SERVER_URL(Settings → Secrets and variables → Actions → Variables)
 on:
   workflow_dispatch:
     inputs:
       server_url:
-        description: '服务器地址(手机能访问到的,如 https://diary.example.com 或 http://192.168.0.10:8020)'
-        required: true
+        description: '服务器地址(留空则用仓库变量 SERVER_URL),如 https://home.example.com 或 http://192.168.0.10:8020'
+        required: false
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      SERVER_URL: ${{ github.event.inputs.server_url || vars.SERVER_URL }}
     steps:
       - uses: actions/checkout@v4
+      - name: 检查服务器地址
+        run: |
+          [ -n "$SERVER_URL" ] || { echo "::error::未设置服务器地址:请在仓库变量里加 SERVER_URL,或手动运行时填写"; exit 1; }
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - uses: actions/setup-java@v4
@@ -19,8 +31,6 @@ jobs:
 
       - name: 生成 Capacitor 配置
         working-directory: app
-        env:
-          SERVER_URL: ${{ github.event.inputs.server_url }}
         run: |
           node -e '
           const u = process.env.SERVER_URL.replace(/\/+$/, "");
@@ -29,25 +39,28 @@ jobs:
             server: { url: u, cleartext: u.startsWith("http://"), androidScheme: u.startsWith("http://") ? "http" : "https" },
             android: { allowMixedContent: true }
           }, null, 2));'
-          cat capacitor.config.json
 
-      - name: 安装依赖并创建 Android 工程
+      - name: 创建 Android 工程
         working-directory: app
         run: |
           npm install --no-audit --no-fund
           npx cap add android
           npx cap sync android
-
-      - name: 允许图片选择/相机(Manifest 权限)
-        working-directory: app/android/app/src/main
-        run: |
-          sed -i 's#<application#<uses-permission android:name="android.permission.CAMERA"/>\n    <uses-permission android:name="android.permission.VIBRATE"/>\n    <application#' AndroidManifest.xml
+          sed -i 's#<application#<uses-permission android:name="android.permission.CAMERA"/>\n    <uses-permission android:name="android.permission.VIBRATE"/>\n    <application#' android/app/src/main/AndroidManifest.xml
 
       - name: 构建 APK
         working-directory: app/android
         run: ./gradlew assembleDebug --no-daemon
 
-      - uses: actions/upload-artifact@v4
+      - name: 重命名
+        run: cp app/android/app/build/outputs/apk/debug/app-debug.apk star-house.apk
+
+      - name: 发布到 Releases
+        uses: softprops/action-gh-release@v2
         with:
-          name: star-house-apk
-          path: app/android/app/build/outputs/apk/debug/app-debug.apk
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('apk-{0}', github.run_number) }}
+          name: 星星屋 APK ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('#{0}', github.run_number) }}
+          body: |
+            星星屋 Android 安装包(调试签名,可直接安装)。
+            加载的服务器地址:${{ env.SERVER_URL }}
+          files: star-house.apk
