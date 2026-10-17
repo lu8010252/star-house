@@ -1,0 +1,9 @@
+{
+  "name": "星糖日记",
+  "short_name": "星糖日记",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fff7fb",
+  "theme_color": "#ffe3f0",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

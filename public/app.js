@@ -1,0 +1,143 @@
+// 星糖日记 · 手机前台
+const S = { children: [], rules: [], shop: [], settings: {}, checkins: [], today: '', cid: +store.get('xt_cid') || 0, tab: store.get('xt_tab') || 'score' };
+const F = { task: '', minutes: 30, endAt: 0, running: false }; // 专注状态
+const TABS = [['score', '🏅', '赏罚'], ['shop', '🎁', '商城'], ['focus', '⏱', '专注'], ['checkin', '📅', '打卡'], ['me', '🧸', '我的']];
+const HERO = {
+  score: ['赏罚分明', '每一次好表现,<br>都值得被看见!', '#ffcf4d', '#fff3c9'],
+  shop: ['快乐补给站', '攒积分,<br>换好礼!', '#ff7eb6', '#ffe3f0'],
+  focus: ['专注时刻', '安静一点点,<br>进步一大步!', '#9b7bff', '#ece6ff'],
+  checkin: ['每日打卡', '坚持一点点,<br>闪闪发光!', '#4cc9a0', '#def7ee'],
+  me: ['成长档案', '记录每一天,<br>书写成长篇章', '#9b7bff', '#ece6ff'],
+};
+const cur = () => S.children.find(c => c.id === S.cid) || S.children[0];
+const placeholder = `<svg class="mascot" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><circle cx="100" cy="112" r="62" fill="#ffe6d2"/><path d="M38 108C34 56 74 34 100 34s66 22 62 74c-14-26-36-38-62-38s-48 12-62 38z" fill="#5a3b7a"/><circle cx="52" cy="62" r="17" fill="#ff7eb6"/><circle cx="148" cy="62" r="17" fill="#ff7eb6"/><circle cx="52" cy="62" r="6" fill="#ffd45e"/><circle cx="148" cy="62" r="6" fill="#ffd45e"/><ellipse cx="78" cy="116" rx="7" ry="9" fill="#3b2a5c"/><ellipse cx="122" cy="116" rx="7" ry="9" fill="#3b2a5c"/><circle cx="80" cy="112" r="2.5" fill="#fff"/><circle cx="124" cy="112" r="2.5" fill="#fff"/><circle cx="64" cy="134" r="8" fill="#ffb3cf" opacity=".7"/><circle cx="136" cy="134" r="8" fill="#ffb3cf" opacity=".7"/><path d="M88 140q12 12 24 0" stroke="#e9559a" stroke-width="4" fill="none" stroke-linecap="round"/></svg>`;
+const mascot = c => (c && c.avatar ? `<img class="mascot" src="${esc(c.avatar)}" alt="">` : placeholder);
+
+function hero(tab, extra = '') {
+  const [t, p, c, cl] = HERO[tab], ch = cur();
+  return `<div class="hero" style="--c:${c};--cl:${cl}"><h1>${t}</h1><div class="bar"></div><p>${p}</p>
+    <div><span class="pts">⭐ <b>${ch ? ch.points : 0}</b></span><button class="who" data-a="switch">${esc(ch ? ch.name : '添加孩子')} ▾</button></div>${extra}${mascot(ch)}</div>`;
+}
+
+// ---------- 弹窗 ----------
+function modal(html, onOk, okText = '确定') {
+  const m = $('#modal'); m.innerHTML = `<div class="mbox">${html}<div class="mb"><button data-x="no">取消</button>${onOk ? `<button class="ok" data-x="ok">${okText}</button>` : ''}</div></div>`;
+  m.onclick = async e => {
+    const x = e.target.dataset.x;
+    if (e.target === m || x === 'no') return close();
+    if (x === 'ok') { try { if ((await onOk()) !== false) close(); } catch (er) { toast(er.message); } }
+  };
+}
+const close = () => { $('#modal').innerHTML = ''; };
+const ask = (title, msg, fn) => modal(`<h3>${title}</h3><p>${msg}</p>`, fn);
+
+// ---------- 页面 ----------
+async function refresh() { Object.assign(S, await api('/state')); if (!S.children.some(c => c.id === S.cid)) S.cid = S.children[0]?.id || 0; render(); }
+
+function render() {
+  $('#nav').innerHTML = TABS.map(([k, ic, n]) => `<button data-t="${k}" class="${S.tab === k ? 'on' : ''}"><span class="ic">${ic}</span>${n}</button>`).join('');
+  if (!S.children.length) {
+    $('#page').innerHTML = `<div class="hero">${'<h1>星糖日记</h1><div class="bar"></div><p>先添加一个孩子吧</p>'}${placeholder}</div><div class="empty">还没有孩子<br><br><button class="btn" data-a="addchild">+ 添加孩子</button></div>`;
+    return;
+  }
+  const v = { score, shop, focus, checkin, me }[S.tab];
+  const r = v();
+  if (r && r.then) r.then(h => { $('#page').innerHTML = h; }); else $('#page').innerHTML = r;
+}
+
+function score() {
+  const card = r => `<button class="card ${r.type}" data-a="rule" data-id="${r.id}"><span class="name">${esc(r.name)}</span><span class="pt">${r.type === 'bad' ? '-' : '+'}${r.points}</span></button>`;
+  const g = S.rules.filter(r => r.type === 'good'), b = S.rules.filter(r => r.type === 'bad');
+  return hero('score') +
+    `<div class="sec"><span class="tag good">⭐ 表现不错(${g.length})</span></div><div class="grid">${g.map(card).join('')}</div>` +
+    `<div class="sec"><span class="tag bad">❗ 有待提高(${b.length})</span></div><div class="grid">${b.map(card).join('')}</div>` +
+    `<div class="sec"><span class="tag flex">✏️ 灵活记录</span></div><div class="grid">
+      <button class="card good" data-a="manual" data-s="1"><span class="name">手动加分</span><span class="pt">+</span></button>
+      <button class="card bad" data-a="manual" data-s="-1"><span class="name">手动扣分</span><span class="pt">-</span></button></div>`;
+}
+
+function shop() {
+  const s = S.settings;
+  return hero('shop') +
+    `<div class="sec">🎀 快乐补给站</div><div class="big">
+      <button class="card shop" data-a="lottery"><span class="em">🎲</span><b>积分抽奖</b><small>${s.lotteryCost} 分一次</small></button>
+      <button class="card shop" data-a="checkin"><span class="em">✅</span><b>每日打卡</b><small>+${s.checkinPoints} 分</small></button></div>` +
+    `<div class="sec">🛍 积分兑换</div><div class="grid">${S.shop.map(i => `<button class="card shop" data-a="redeem" data-id="${i.id}"><span class="name">${esc(i.name)}</span><span class="pt">⭐ ${i.cost}</span></button>`).join('') || '<div class="empty">家长后台还没添加商品</div>'}</div>`;
+}
+
+const fmtT = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+function focus() {
+  const tasks = S.settings.focusTasks || [];
+  if (!F.task) F.task = tasks[0] || '专注';
+  const left = F.running ? Math.max(0, Math.ceil((F.endAt - Date.now()) / 1000)) : F.minutes * 60, p = F.running ? 100 - left / (F.minutes * 60) * 100 : 0;
+  return hero('focus') +
+    `<div class="timer" style="--p:${p}"><div><small>专注倒计时</small><span class="t" id="tt">${fmtT(left)}</span><small>${F.running ? '加油,别分心' : '准备好就开始吧'}</small></div></div>
+     <div class="btns"><button class="btn" data-a="${F.running ? 'fstop' : 'fstart'}">${F.running ? '放弃' : '▶ 专注'}</button>
+     <button class="btn ghost" data-a="fmin" ${F.running ? 'disabled' : ''}>${F.minutes} 分钟 ▾</button></div>
+     <div class="sec">选择专注任务</div><div class="chips">${tasks.map(t => `<button class="chip ${t === F.task ? 'on' : ''}" data-a="ftask" data-v="${esc(t)}">${esc(t)}</button>`).join('')}</div>
+     <div class="empty" style="font-size:13px">每完成 10 分钟得 ${S.settings.focusPer10} 分</div>`;
+}
+setInterval(() => {
+  if (!F.running) return;
+  const left = Math.ceil((F.endAt - Date.now()) / 1000);
+  if (left <= 0) return finishFocus();
+  const t = $('#tt'); if (t) { t.textContent = fmtT(left); $('.timer').style.setProperty('--p', 100 - left / (F.minutes * 60) * 100); }
+}, 500);
+async function finishFocus() {
+  F.running = false;
+  try { navigator.vibrate && navigator.vibrate([300, 150, 300]); } catch {}
+  try { const r = await api('/focus', 'POST', { childId: S.cid, task: F.task, minutes: F.minutes }); toast(`专注完成!${r.got ? '+' + r.got + ' 分' : ''}`); await refresh(); } catch (e) { toast(e.message); }
+}
+
+function checkin() {
+  const now = new Date(S.today.replace(/-/g, '/')), y = now.getFullYear(), m = now.getMonth(), first = new Date(y, m, 1).getDay(), days = new Date(y, m + 1, 0).getDate();
+  const done = new Set(S.checkins.filter(c => c.childId === S.cid).map(c => c.d));
+  let cells = '<span></span>'.repeat(first);
+  for (let d = 1; d <= days; d++) { const k = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`; cells += `<span class="${done.has(k) ? 'ok' : ''} ${k === S.today ? 'today' : ''}">${d}</span>`; }
+  const n = [...done].filter(k => k.startsWith(`${y}-${String(m + 1).padStart(2, '0')}`)).length;
+  return hero('checkin') + `<div class="sec">${m + 1} 月打卡 · 已坚持 ${n} 天</div><div class="cal"><div class="w">${'日一二三四五六'.split('').map(x => `<span>${x}</span>`).join('')}</div><div class="d">${cells}</div></div>
+    <div class="btns" style="margin-top:18px"><button class="btn" data-a="checkin" ${done.has(S.today) ? 'disabled style="opacity:.5"' : ''}>${done.has(S.today) ? '今天已打卡 ✓' : '今日打卡 +' + S.settings.checkinPoints}</button></div>`;
+}
+
+let meFilter = 'all';
+async function me() {
+  const ch = cur(), logs = await api(`/logs?childId=${ch.id}&type=${meFilter === 'all' ? '' : meFilter}&limit=60`);
+  return hero('me') +
+    `<div class="sec">📒 记录</div><div class="chips" style="margin-bottom:12px">${[['all', '积分记录'], ['redeem', '兑换记录'], ['lottery', '抽奖记录']].map(([k, n]) => `<button class="chip ${meFilter === k ? 'on' : ''}" data-a="mf" data-v="${k}">${n}</button>`).join('')}</div>
+     <div class="list">${logs.map(l => `<div class="row"><div>${esc(l.reason)}<small>${fmtTime(l.ts)}</small></div><b class="${l.delta >= 0 ? 'p' : 'n'}">${l.delta ? sign(l.delta) : '🎁'}</b></div>`).join('') || '<div class="empty">暂无记录</div>'}</div>
+     <button class="link" data-a="logout">退出登录</button>`;
+}
+
+// ---------- 交互 ----------
+document.addEventListener('click', async e => {
+  const t = e.target.closest('[data-t],[data-a]'); if (!t) return;
+  if (t.dataset.t) { S.tab = t.dataset.t; store.set('xt_tab', S.tab); return render(); }
+  const a = t.dataset.a, id = +t.dataset.id;
+  try {
+    if (a === 'rule') { const r = S.rules.find(x => x.id === id); ask(esc(r.name), `${r.type === 'bad' ? '扣' : '加'} ${r.points} 分,确认吗?`, async () => { await api('/score', 'POST', { childId: S.cid, ruleId: id }); toast(`${r.type === 'bad' ? '-' : '+'}${r.points}`); refresh(); }); }
+    else if (a === 'manual') { const s = +t.dataset.s; modal(`<h3>手动${s > 0 ? '加' : '扣'}分</h3><input id="mp" type="number" inputmode="numeric" placeholder="分数"><input id="mr" placeholder="原因(可不填)">`, async () => { const n = Math.abs(+$('#mp').value | 0); if (!n) throw new Error('请输入分数'); await api('/score', 'POST', { childId: S.cid, delta: s * n, reason: $('#mr').value }); refresh(); }); }
+    else if (a === 'redeem') { const i = S.shop.find(x => x.id === id); ask('兑换', `用 ${i.cost} 分兑换「${esc(i.name)}」?`, async () => { await api('/redeem', 'POST', { childId: S.cid, itemId: id }); toast('兑换成功 🎉'); refresh(); }); }
+    else if (a === 'lottery') ask('积分抽奖', `消耗 ${S.settings.lotteryCost} 分抽一次,试试手气?`, async () => {
+      $('#modal').innerHTML = `<div class="mbox"><div class="prize"><span class="spin">🎲</span></div><p>抽奖中…</p></div>`;
+      const [r] = await Promise.all([api('/lottery', 'POST', { childId: S.cid }).catch(er => er), new Promise(r => setTimeout(r, 900))]);
+      if (r instanceof Error) { toast(r.message); close(); return false; }
+      modal(`<div class="prize">🎉</div><h3>${esc(r.prize)}</h3>`); refresh(); return false;
+    });
+    else if (a === 'checkin') { const r = await api('/checkin', 'POST', { childId: S.cid }); toast(`打卡成功 +${r.got}`); refresh(); }
+    else if (a === 'fstart') { F.endAt = Date.now() + F.minutes * 60000; F.running = true; render(); }
+    else if (a === 'fstop') ask('放弃专注?', '现在放弃就没有积分啦', async () => { F.running = false; render(); });
+    else if (a === 'ftask') { F.task = t.dataset.v; render(); }
+    else if (a === 'fmin') modal(`<h3>专注时长</h3><div class="chips" style="justify-content:center;margin-bottom:6px">${[10, 15, 20, 30, 45, 60].map(m => `<button class="chip" data-a="setmin" data-v="${m}">${m} 分钟</button>`).join('')}</div>`);
+    else if (a === 'setmin') { F.minutes = +t.dataset.v; close(); render(); }
+    else if (a === 'mf') { meFilter = t.dataset.v; render(); }
+    else if (a === 'switch') {
+      modal(`<h3>切换孩子</h3><div class="chips" style="justify-content:center">${S.children.map(c => `<button class="chip ${c.id === S.cid ? 'on' : ''}" data-a="pick" data-id="${c.id}">${esc(c.name)}</button>`).join('')}</div>`);
+    }
+    else if (a === 'pick') { S.cid = id; store.set('xt_cid', id); close(); render(); }
+    else if (a === 'addchild') modal(`<h3>添加孩子</h3><input id="cn" placeholder="名字">`, async () => { await api('/children', 'POST', { name: $('#cn').value }); refresh(); });
+    else if (a === 'logout') { store.del('xt_token'); location.reload(); }
+  } catch (er) { toast(er.message); }
+});
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+requireLogin('星糖日记', refresh);

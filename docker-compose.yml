@@ -1,0 +1,12 @@
+services:
+  xingtang-diary:
+    build: .
+    container_name: xingtang-diary
+    restart: unless-stopped
+    ports:
+      - "8090:3000"
+    environment:
+      - PASSWORD=123456        # 登录密码,务必修改
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./data:/data

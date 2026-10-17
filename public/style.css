@@ -1,0 +1,24 @@
+:root {
+  --pink: #ff7eb6; --pink-d: #e9559a; --pink-l: #ffe3f0;
+  --purple: #9b7bff; --purple-d: #6f4fe0; --purple-l: #ece6ff;
+  --yellow: #ffd45e; --green: #4cc9a0; --green-l: #def7ee; --red: #ff6b81; --red-l: #ffe3e8;
+  --ink: #3b2a5c; --ink2: #8a7aa8; --bg: #fff7fb; --card: #fff;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; }
+body {
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif; color: var(--ink);
+  background: radial-gradient(circle at 90% -5%, #e8dcff 0, transparent 40%), radial-gradient(circle at -5% 30%, #ffe1ef 0, transparent 38%), var(--bg);
+  background-attachment: fixed;
+}
+button { font: inherit; border: 0; cursor: pointer; color: inherit; }
+input, select { font: inherit; color: var(--ink); }
+#toast { position: fixed; left: 50%; top: 18%; transform: translate(-50%, -10px); background: rgba(59,42,92,.92); color: #fff; padding: 10px 18px; border-radius: 20px; opacity: 0; pointer-events: none; transition: .25s; z-index: 99; max-width: 80%; text-align: center; }
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* 登录 */
+.login { position: fixed; inset: 0; background: linear-gradient(160deg, #ffd6ea, #d9ccff); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 24px; }
+.login-card { background: #fff; border-radius: 28px; padding: 28px 24px; width: 100%; max-width: 340px; text-align: center; box-shadow: 0 16px 40px rgba(155,123,255,.3); }
+.login-logo { font-size: 44px; } .login-card h2 { margin: 6px 0 16px; }
+.login-card input { width: 100%; padding: 13px 16px; border-radius: 16px; border: 2px solid var(--purple-l); outline: 0; margin-bottom: 12px; text-align: center; }
+.login-card button { width: 100%; padding: 13px; border-radius: 16px; background: linear-gradient(90deg, var(--pink), var(--purple)); color: #fff; font-weight: 700; }
