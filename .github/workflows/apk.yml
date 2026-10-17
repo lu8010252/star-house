@@ -25,7 +25,7 @@ jobs:
           node -e '
           const u = process.env.SERVER_URL.replace(/\/+$/, "");
           require("fs").writeFileSync("capacitor.config.json", JSON.stringify({
-            appId: "com.xingtang.diary", appName: "星糖日记", webDir: "www",
+            appId: "com.starhouse.app", appName: "星星屋", webDir: "www",
             server: { url: u, cleartext: u.startsWith("http://"), androidScheme: u.startsWith("http://") ? "http" : "https" },
             android: { allowMixedContent: true }
           }, null, 2));'
@@ -49,5 +49,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: xingtang-diary-apk
+          name: star-house-apk
           path: app/android/app/build/outputs/apk/debug/app-debug.apk

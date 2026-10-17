@@ -1,11 +1,11 @@
-# ⭐ 星糖日记
+# ⭐ 星星屋
 
 孩子积分成长系统:手机前台(赏罚 / 商城抽奖 / 专注 / 打卡 / 我的)+ 家长网页后台(看板 / 孩子 / 规则 / 商城 / 记录 / 设置),支持多个孩子,粉紫风。
 
 ## 部署(Docker)
 
 ```bash
-git clone <本仓库> && cd xingtang-diary
+git clone <本仓库> && cd star-house
 # 修改 docker-compose.yml 里的 PASSWORD
 docker compose up -d --build
 ```

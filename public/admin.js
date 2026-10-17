@@ -1,4 +1,4 @@
-// 星糖日记 · 家长后台
+// 星星屋 · 家长后台
 const S = { children: [], rules: [], shop: [], prizes: [], settings: {}, cid: 0, tab: store.get('xa_tab') || 'dash', month: '' };
 const TABS = [['dash', '首页看板'], ['kids', '孩子管理'], ['rules', '赏罚规则'], ['shop', '商城 / 抽奖'], ['logs', '积分记录'], ['set', '系统设置']];
 const ym = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;

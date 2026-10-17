@@ -1,4 +1,4 @@
-// 星糖日记 · 手机前台
+// 星星屋 · 手机前台
 const S = { children: [], rules: [], shop: [], settings: {}, checkins: [], today: '', cid: +store.get('xt_cid') || 0, tab: store.get('xt_tab') || 'score' };
 const F = { task: '', minutes: 30, endAt: 0, running: false }; // 专注状态
 const TABS = [['score', '🏅', '赏罚'], ['shop', '🎁', '商城'], ['focus', '⏱', '专注'], ['checkin', '📅', '打卡'], ['me', '🧸', '我的']];
@@ -37,7 +37,7 @@ async function refresh() { Object.assign(S, await api('/state')); if (!S.childre
 function render() {
   $('#nav').innerHTML = TABS.map(([k, ic, n]) => `<button data-t="${k}" class="${S.tab === k ? 'on' : ''}"><span class="ic">${ic}</span>${n}</button>`).join('');
   if (!S.children.length) {
-    $('#page').innerHTML = `<div class="hero">${'<h1>星糖日记</h1><div class="bar"></div><p>先添加一个孩子吧</p>'}${placeholder}</div><div class="empty">还没有孩子<br><br><button class="btn" data-a="addchild">+ 添加孩子</button></div>`;
+    $('#page').innerHTML = `<div class="hero">${'<h1>星星屋</h1><div class="bar"></div><p>先添加一个孩子吧</p>'}${placeholder}</div><div class="empty">还没有孩子<br><br><button class="btn" data-a="addchild">+ 添加孩子</button></div>`;
     return;
   }
   const v = { score, shop, focus, checkin, me }[S.tab];
@@ -140,4 +140,4 @@ document.addEventListener('click', async e => {
 });
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
-requireLogin('星糖日记', refresh);
+requireLogin('星星屋', refresh);

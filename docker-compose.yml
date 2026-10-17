@@ -1,7 +1,7 @@
 services:
-  xingtang-diary:
+  star-house:
     build: .
-    container_name: xingtang-diary
+    container_name: star-house
     restart: unless-stopped
     ports:
       - "8090:3000"

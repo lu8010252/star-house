@@ -239,4 +239,4 @@ app.post('/api/upload', wrap(req => {
   return { url: '/uploads/' + name };
 }));
 
-app.listen(PORT, () => console.log('星糖日记 running on :' + PORT));
+app.listen(PORT, () => console.log('星星屋 running on :' + PORT));
