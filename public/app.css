@@ -7,7 +7,8 @@
 .hero .pts { position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 22px; background: #fff; border: 2px solid var(--yellow); font-weight: 800; }
 .hero .pts b { color: #e0a100; font-size: 20px; }
 .hero .who { position: relative; display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 8px 14px; border-radius: 22px; background: var(--yellow); font-weight: 800; box-shadow: 0 3px 0 #e0b230; }
-.mascot { position: absolute; right: 8px; bottom: 0; width: 46%; height: 100%; object-fit: contain; object-position: right bottom; }
+.mascot { position: absolute; right: 6px; bottom: -4px; width: 50%; height: 108%; object-fit: contain; object-position: right bottom; }
+.mascot.photo { width: 150px; height: 150px; right: 14px; bottom: 14px; border-radius: 50%; object-fit: cover; object-position: center 25%; border: 4px solid #fff; box-shadow: 0 6px 16px rgba(155,123,255,.3); }
 .sec { display: flex; align-items: center; gap: 8px; margin: 22px 4px 10px; font-size: 18px; font-weight: 800; }
 .sec .tag { padding: 6px 16px; border-radius: 16px; font-size: 15px; }
 .tag.good { background: var(--green-l); color: #1e9c78; } .tag.bad { background: var(--red-l); color: #e0455e; } .tag.flex { background: #e2efff; color: #3f86e0; }

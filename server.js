@@ -42,6 +42,8 @@ function defaults() {
 let db;
 try { db = Object.assign(defaults(), JSON.parse(fs.readFileSync(DB_FILE, 'utf8'))); } catch { db = defaults(); }
 db.settings = Object.assign(defaults().settings, db.settings); // 老数据补新设置项
+const PRESET = { '路心语': '/avatars/girl-a.svg', '路依依': '/avatars/girl-b.svg' };
+for (const c of db.children) if (!c.avatar && PRESET[c.name]) c.avatar = PRESET[c.name];
 delete db.prizes; delete db.settings.lotteryCost; // 已移除抽奖功能
 let saving = false, dirty = false;
 function save() {
@@ -92,7 +94,7 @@ app.get('/api/state', wrap(() => ({
 // 孩子
 app.post('/api/children', wrap(req => {
   const name = String(req.body.name || '').trim(); need(name, '请填写名字');
-  const c = { id: nid(), name, avatar: req.body.avatar || '', points: 0, created: Date.now() };
+  const c = { id: nid(), name, avatar: req.body.avatar || PRESET[name] || '', points: 0, created: Date.now() };
   db.children.push(c); return c;
 }));
 app.put('/api/children/:id', wrap(req => {

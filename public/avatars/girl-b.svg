@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 260">
+<g stroke="#3b2a5c" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+<!-- 两侧小辫 -->
+<ellipse cx="62" cy="96" rx="20" ry="26" transform="rotate(24 62 96)" fill="#2d2850"/>
+<ellipse cx="198" cy="96" rx="20" ry="26" transform="rotate(-24 198 96)" fill="#2d2850"/>
+<!-- 身体:灰T恤 -->
+<path d="M16 260 C16 214 56 192 104 188 L156 188 C204 192 244 214 244 260 Z" fill="#a9afb6"/>
+<rect x="112" y="164" width="36" height="30" rx="14" fill="#ffe3cf"/>
+<path d="M100 192 C104 208 156 208 160 192" fill="none"/>
+<!-- 头 -->
+<ellipse cx="66" cy="132" rx="9" ry="12" fill="#ffe3cf"/><ellipse cx="194" cy="132" rx="9" ry="12" fill="#ffe3cf"/>
+<ellipse cx="130" cy="126" rx="68" ry="62" fill="#ffe3cf"/>
+<!-- 中分刘海 -->
+<path d="M62 124 C54 70 92 50 130 50 C170 50 208 70 198 124 C190 100 166 86 136 80 L130 66 L124 80 C94 86 70 100 62 124 Z" fill="#2d2850"/>
+<!-- 小红头绳 -->
+<circle cx="76" cy="110" r="7" fill="#ff4d5e"/><circle cx="184" cy="110" r="7" fill="#ff4d5e"/>
+<!-- 脸:笑眼 -->
+<path d="M90 130 Q103 116 116 130" fill="none" stroke-width="4.5"/><path d="M144 130 Q157 116 170 130" fill="none" stroke-width="4.5"/>
+<ellipse cx="82" cy="152" rx="13" ry="9" fill="#ffb3cf" opacity=".7" stroke="none"/><ellipse cx="178" cy="152" rx="13" ry="9" fill="#ffb3cf" opacity=".7" stroke="none"/>
+<path d="M127 142 Q130 146 133 142" fill="none" stroke-width="2.5"/>
+<path d="M102 152 Q130 184 158 152 Q130 160 102 152 Z" fill="#d8546f"/>
+<path d="M108 154 Q130 162 152 154 L150 160 Q130 168 110 160 Z" fill="#fff" stroke="none"/>
+</g>
+</svg>

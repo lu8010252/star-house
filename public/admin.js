@@ -56,9 +56,9 @@ const rules = () => `<div class="box"><h3>赏罚规则</h3>${editor('rules', [{ 
 const shop = () => `<div class="box"><h3>兑换商品</h3>${editor('shop', [{ k: 'name', l: '商品' }, { k: 'cost', l: '所需积分', num: 1 }], { name: '', cost: 50 })}</div>`;
 
 // ---- 孩子 ----
-const kids = () => `<div class="box"><h3>孩子管理</h3><small style="color:var(--ink2)">形象图会显示在手机前台的大卡片右侧,建议用透明底 PNG / 半身像</small>
+const kids = () => `<div class="box"><h3>孩子管理</h3><small style="color:var(--ink2)">可选内置卡通形象,也可以上传照片(会裁成圆形显示在前台大卡片右侧)</small>
   ${S.children.map(c => `<div class="ed" data-id="${c.id}">${c.avatar ? `<img class="ava" src="${esc(c.avatar)}">` : `<span class="ava">${esc(c.name[0])}</span>`}<input data-k="name" value="${esc(c.name)}"><b>⭐${c.points}</b>
-    <button class="b g" data-a="ava">换形象图</button><button class="b" data-a="kidsave">保存</button><button class="b r" data-a="kiddel">删除</button></div>`).join('')}
+    <button class="b g" data-a="pre" data-v="/avatars/girl-a.svg">卡通一</button><button class="b g" data-a="pre" data-v="/avatars/girl-b.svg">卡通二</button><button class="b g" data-a="ava">上传照片</button><button class="b" data-a="kidsave">保存</button><button class="b r" data-a="kiddel">删除</button></div>`).join('')}
   <div class="ed"><input id="newkid" placeholder="新孩子名字"><button class="b" data-a="kidadd">＋ 添加孩子</button></div></div>`;
 
 // ---- 记录 ----
@@ -100,6 +100,7 @@ document.addEventListener('click', async e => {
     else if (a === 'kidadd') { await api('/children', 'POST', { name: $('#newkid').value }); await load(); }
     else if (a === 'kidsave') { await api('/children/' + row.dataset.id, 'PUT', { name: val('name') }); toast('已保存'); await load(); }
     else if (a === 'kiddel') { if (confirm('删除该孩子及其所有记录?此操作不可恢复')) { await api('/children/' + row.dataset.id, 'DELETE'); await load(); } }
+    else if (a === 'pre') { await api('/children/' + row.dataset.id, 'PUT', { avatar: t.dataset.v }); toast('形象已更新'); await load(); }
     else if (a === 'ava') { const url = await pickImage(900); await api('/children/' + row.dataset.id, 'PUT', { avatar: url }); toast('形象图已更新'); await load(); }
     else if (a === 'manual') { const d = +$('#md').value | 0; if (!d) return toast('请输入分数'); await api('/score', 'POST', { childId: S.cid, delta: d, reason: $('#mr').value }); toast('已记录'); await load(); }
     else if (a === 'undo') { if (confirm('撤销这条记录并回退积分?')) { await api('/logs/' + t.dataset.id, 'DELETE'); await load(); } }

@@ -12,7 +12,7 @@ const HERO = {
 };
 const cur = () => S.children.find(c => c.id === S.cid) || S.children[0];
 const placeholder = `<svg class="mascot" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><circle cx="100" cy="112" r="62" fill="#ffe6d2"/><path d="M38 108C34 56 74 34 100 34s66 22 62 74c-14-26-36-38-62-38s-48 12-62 38z" fill="#5a3b7a"/><circle cx="52" cy="62" r="17" fill="#ff7eb6"/><circle cx="148" cy="62" r="17" fill="#ff7eb6"/><circle cx="52" cy="62" r="6" fill="#ffd45e"/><circle cx="148" cy="62" r="6" fill="#ffd45e"/><ellipse cx="78" cy="116" rx="7" ry="9" fill="#3b2a5c"/><ellipse cx="122" cy="116" rx="7" ry="9" fill="#3b2a5c"/><circle cx="80" cy="112" r="2.5" fill="#fff"/><circle cx="124" cy="112" r="2.5" fill="#fff"/><circle cx="64" cy="134" r="8" fill="#ffb3cf" opacity=".7"/><circle cx="136" cy="134" r="8" fill="#ffb3cf" opacity=".7"/><path d="M88 140q12 12 24 0" stroke="#e9559a" stroke-width="4" fill="none" stroke-linecap="round"/></svg>`;
-const mascot = c => (c && c.avatar ? `<img class="mascot" src="${esc(c.avatar)}" alt="">` : placeholder);
+const mascot = c => (c && c.avatar ? `<img class="mascot ${c.avatar.startsWith('/avatars/') ? '' : 'photo'}" src="${esc(c.avatar)}" alt="">` : placeholder);
 
 function hero(tab, extra = '') {
   const [t, p, c, cl] = HERO[tab], ch = cur();
