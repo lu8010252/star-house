@@ -2,17 +2,20 @@
 
 孩子积分成长系统:手机前台(赏罚 / 学习 / 专注 / 商城抽奖 / 我的:时光日历、各类记录)+ 家长网页后台(看板 / 孩子 / 规则 / 商城 / 积分记录 / 学习记录 / 设置),支持多个孩子,粉紫风。
 
-## 部署(Docker)
+## 部署(Docker,不需要 build)
 
 ```bash
-git clone <本仓库> && cd star-house
+cd /opt/1panel/apps
+git clone https://github.com/lu8010252/star-house && cd star-house
 # 修改 docker-compose.yml 里的 PASSWORD
-docker compose up -d --build
+docker compose up -d
 ```
 
+- 用的是 `node:22-alpine` 镜像,把项目目录挂进去运行,首次启动自动 npm install(走 npmmirror)。
 - 手机前台:`http://服务器:8020/`
 - 家长后台:`http://服务器:8020/admin.html`
 - 数据在 `./data`(db.json + uploads),备份这个目录即可。
+- 更新:`git pull && docker compose restart`(依赖有变化时先删 `node_modules`)。
 
 ## 做成 APK(Capacitor 套壳,云端构建)
 

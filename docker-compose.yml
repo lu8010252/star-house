@@ -1,12 +1,16 @@
 services:
   star-house:
-    build: .
+    image: node:22-alpine
     container_name: star-house
     restart: unless-stopped
+    working_dir: /app
+    command: sh -c "[ -d node_modules ] || npm install --omit=dev --no-audit --no-fund --registry=https://registry.npmmirror.com; node server.js"
     ports:
-      - "8020:3000"
+      - "8020:8020"
     environment:
+      - PORT=8020
       - PASSWORD=123456        # 登录密码,务必修改
       - TZ=Asia/Shanghai
+      - DATA_DIR=/app/data
     volumes:
-      - ./data:/data
+      - ./:/app                # 整个项目目录(git clone 下来的),数据在 ./data

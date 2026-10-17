@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8020;
 const DATA = process.env.DATA_DIR || path.join(__dirname, 'data');
 const PASSWORD = process.env.PASSWORD || '123456';
 const TOKEN = crypto.createHash('sha256').update('xtd:' + PASSWORD).digest('hex');
