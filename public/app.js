@@ -134,10 +134,12 @@ const stF = { subject: '', kind: '' };
 async function study() {
   const ch = cur(), subs = S.settings.subjects || [], kinds = S.settings.kinds || [];
   const list = await api(`/study?childId=${ch.id}&subject=${encodeURIComponent(stF.subject)}&kind=${encodeURIComponent(stF.kind)}`);
-  const row = (arr, key) => `<div class="chips nowrap">${['', ...arr].map(v => `<button class="chip ${stF[key] === v ? 'on' : ''}" data-a="stf" data-k="${key}" data-v="${esc(v)}">${v ? esc(v) : '全部'}</button>`).join('')}</div>`;
+  const row = (arr, key) => `<div class="fchips">${['', ...arr].map(v => `<button class="fchip ${stF[key] === v ? 'on' : ''}" data-a="stf" data-k="${key}" data-v="${esc(v)}">${v ? esc(v) : '全部'}</button>`).join('')}</div>`;
+  const hue = t => { let h = 0; for (const c of String(t)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
   return hero('study', '<button class="herobtn" data-a="stadd">＋ 记录</button>') +
-    `<div class="sec">📚 科目</div>${row(subs, 'subject')}<div class="sec">📝 类型</div>${row(kinds, 'kind')}<div class="sec">学习记录</div>
-     <div class="list">${list.map(x => `<div class="row"><div><b>${esc(x.subject)}</b> · ${esc(x.kind)}${x.note ? `<small>${esc(x.note)}</small>` : ''}<small>${x.d}</small></div><b class="sc">${esc(x.score) || '✓'}</b></div>`).join('') || '<div class="empty">暂无记录<br>快去记录你的学习点滴吧</div>'}</div>`;
+    `<div class="fpanel"><div class="frw"><span class="fl">📚<em>科目</em></span>${row(subs, 'subject')}</div><div class="frw"><span class="fl">📝<em>类型</em></span>${row(kinds, 'kind')}</div></div>
+     <div class="sec">学习记录</div>
+     <div class="list">${list.map(x => `<div class="row srow" style="--h:${hue(x.subject)}"><div><span class="sb">${esc(x.subject)}</span><span class="sk">${esc(x.kind)}</span>${x.note ? `<small>${esc(x.note)}</small>` : ''}<small>${x.d}</small></div><b class="sc">${esc(x.score) || '✓'}</b></div>`).join('') || '<div class="empty">暂无记录<br>快去记录你的学习点滴吧</div>'}</div>`;
 }
 
 // ---------- 我的(成长档案) ----------
