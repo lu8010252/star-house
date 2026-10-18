@@ -2,6 +2,8 @@
 const S = { children: [], rules: [], shop: [], settings: {}, checkins: [], today: '', cid: +store.get('xt_cid') || 0, tab: store.get('xt_tab') || 'score' };
 const F = { task: '', minutes: Math.min(180, Math.max(1, +store.get('xt_fmin') || 30)), endAt: 0, running: false }; // 专注状态
 // 提示音(WebAudio 合成,无需音频文件;需在点击「专注」时解锁)
+const saveF = () => { try { store.set('xt_focus', JSON.stringify({ task: F.task, minutes: F.minutes, endAt: F.endAt, running: F.running })); } catch {} };
+try { const o = JSON.parse(store.get('xt_focus') || 'null'); if (o && o.running && o.endAt) { F.task = o.task || ''; F.minutes = o.minutes || F.minutes; F.endAt = o.endAt; F.running = true; } } catch {} // 应用被系统杀掉后,接着倒计时
 let AC = null;
 const soundOn = () => store.get('xt_fsnd') !== '0';
 function unlockAudio() { try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === 'suspended') AC.resume(); } catch {} }
@@ -176,15 +178,17 @@ function focus() {
      <div class="btns"><button class="btn ghost" data-a="fsnd">${soundOn() ? '🔔 提示音:开' : '🔕 提示音:关'}</button>${NATIVE ? '<button class="btn ghost" data-a="ftest">测试锁屏提醒</button>' : ''}</div>
      <div class="empty" style="font-size:13px">每完成 10 分钟得 ${S.settings.focusPer10} 分</div>`;
 }
-setInterval(() => {
-  if (!F.running) return;
+const focusTick = () => {
+  if (!F.running || !S.cid) return;
   const left = Math.ceil((F.endAt - Date.now()) / 1000);
   if (left <= 0) return finishFocus();
   const t = $('#tt'); if (t) { t.textContent = fmtT(left); $('.timer').style.setProperty('--p', 100 - left / (F.minutes * 60) * 100); }
-}, 500);
+};
+setInterval(focusTick, 500);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { focusTick(); if (F.running && S.tab === 'focus') render(); } });
 async function finishFocus() {
   const late = Date.now() - F.endAt > 5000; // 锁屏期间已由系统通知提醒,解锁后不再重复响
-  F.running = false; cancelFocusNotice(); if (!(NATIVE && late)) playAlarm();
+  F.running = false; saveF(); cancelFocusNotice(); if (!(NATIVE && late)) playAlarm();
   try { navigator.vibrate && navigator.vibrate([300, 150, 300]); } catch {}
   try { const r = await api('/focus', 'POST', { childId: S.cid, task: F.task, minutes: F.minutes }); toast(`专注完成!${r.got ? '+' + r.got + ' 分' : ''}`); await refresh(); } catch (e) { toast(e.message); }
 }
@@ -250,8 +254,8 @@ document.addEventListener('click', async e => {
     else if (a === 'checkin') { const r = await api('/checkin', 'POST', { childId: S.cid }); toast(`打卡成功 +${r.got}`); refresh(); }
     else if (a === 'ftest') schedFocusNotice(Date.now() + 10000, true);
     else if (a === 'fsnd') { store.set('xt_fsnd', soundOn() ? '0' : '1'); if (soundOn()) { unlockAudio(); playAlarm(); } render(); }
-    else if (a === 'fstart') { unlockAudio(); F.endAt = Date.now() + F.minutes * 60000; F.running = true; schedFocusNotice(); render(); }
-    else if (a === 'fstop') ask('放弃专注?', '现在放弃就没有积分啦', async () => { F.running = false; cancelFocusNotice(); render(); });
+    else if (a === 'fstart') { unlockAudio(); F.endAt = Date.now() + F.minutes * 60000; F.running = true; saveF(); schedFocusNotice(); render(); }
+    else if (a === 'fstop') ask('放弃专注?', '现在放弃就没有积分啦', async () => { F.running = false; saveF(); cancelFocusNotice(); render(); });
     else if (a === 'ftask') { F.task = t.dataset.v; render(); }
     else if (a === 'fmin') modal(`<h3>专注时长</h3><div class="chips" style="justify-content:center;margin-bottom:6px">${[10, 15, 20, 30, 45, 60].map(m => `<button class="chip" data-a="setmin" data-v="${m}">${m} 分钟</button>`).join('')}</div><input id="cm" type="number" inputmode="numeric" min="1" max="180" placeholder="自定义分钟(1-180)" value="${F.minutes}">`, () => { const n = Math.round(+$('#cm').value); if (!(n >= 1 && n <= 180)) throw new Error('请输入 1-180 分钟'); F.minutes = n; store.set('xt_fmin', String(n)); render(); });
     else if (a === 'setmin') { F.minutes = +t.dataset.v; store.set('xt_fmin', String(F.minutes)); close(); render(); }

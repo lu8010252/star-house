@@ -17,11 +17,20 @@ import android.os.Looper;
 import android.os.Vibrator;
 
 public class StarAlarmReceiver extends BroadcastReceiver {
+    private static long lastRing = 0;
+
     @Override
     public void onReceive(Context c, Intent in) {
-        final PendingResult pr = goAsync();
         String title = in.getStringExtra("title");
         String body = in.getStringExtra("body");
+        ring(c, title, body, goAsync());
+    }
+
+    // 响铃 + 通知 + 震动(闹钟广播和前台服务都会调用,15 秒内只响一次)
+    static synchronized void ring(Context c, String title, String body, final PendingResult pr) {
+        long now = System.currentTimeMillis();
+        if (now - lastRing < 15000) { if (pr != null) pr.finish(); return; }
+        lastRing = now;
         if (title == null) title = "专注完成啦";
         if (body == null) body = "";
 
@@ -69,7 +78,7 @@ public class StarAlarmReceiver extends BroadcastReceiver {
         final Ringtone rr = r;
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             try { if (rr != null) rr.stop(); } catch (Exception ignored) {}
-            pr.finish();
+            if (pr != null) pr.finish();
         }, 8000);
     }
 }

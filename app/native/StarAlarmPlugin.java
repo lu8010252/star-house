@@ -4,6 +4,7 @@ import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import androidx.core.content.ContextCompat;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
@@ -32,6 +33,11 @@ public class StarAlarmPlugin extends Plugin {
             Intent open = new Intent(c, MainActivity.class);
             PendingIntent showPi = PendingIntent.getActivity(c, 0, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
             am.setAlarmClock(new AlarmManager.AlarmClockInfo(at, showPi), alarmIntent(c, title, body));
+            try {
+                Intent svc = new Intent(c, StarFocusService.class);
+                svc.putExtra("at", at); svc.putExtra("title", title); svc.putExtra("body", body);
+                ContextCompat.startForegroundService(c, svc);
+            } catch (Exception ignored) {}
             call.resolve();
         } catch (Exception e) {
             call.reject("设置闹钟失败:" + e.getMessage());
@@ -44,6 +50,7 @@ public class StarAlarmPlugin extends Plugin {
             Context c = getContext();
             AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
             am.cancel(alarmIntent(c, "", ""));
+            c.stopService(new Intent(c, StarFocusService.class));
             call.resolve();
         } catch (Exception e) {
             call.reject(e.getMessage());
