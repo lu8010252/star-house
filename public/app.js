@@ -1,6 +1,23 @@
 // 星星屋 · 手机前台
 const S = { children: [], rules: [], shop: [], settings: {}, checkins: [], today: '', cid: +store.get('xt_cid') || 0, tab: store.get('xt_tab') || 'score' };
-const F = { task: '', minutes: 30, endAt: 0, running: false }; // 专注状态
+const F = { task: '', minutes: Math.min(180, Math.max(1, +store.get('xt_fmin') || 30)), endAt: 0, running: false }; // 专注状态
+// 提示音(WebAudio 合成,无需音频文件;需在点击「专注」时解锁)
+let AC = null;
+const soundOn = () => store.get('xt_fsnd') !== '0';
+function unlockAudio() { try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === 'suspended') AC.resume(); } catch {} }
+function playAlarm() {
+  if (!soundOn()) return;
+  try {
+    unlockAudio(); if (!AC) return;
+    const t0 = AC.currentTime + 0.05;
+    for (let r = 0; r < 3; r++) [660, 880, 1100].forEach((f, i) => {
+      const t = t0 + r * 1.2 + i * 0.28, o = AC.createOscillator(), g = AC.createGain();
+      o.type = 'sine'; o.frequency.value = f; o.connect(g); g.connect(AC.destination);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+      o.start(t); o.stop(t + 0.27);
+    });
+  } catch {}
+}
 const NAVI = {"score": "<svg viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"8\" r=\"6\"/><path d=\"M15.5 13.5 17 22l-5-3-5 3 1.5-8.5\"/></svg>", "study": "<svg viewBox=\"0 0 24 24\"><path d=\"M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z\"/><path d=\"M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z\"/></svg>", "focus": "<svg viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"13\" r=\"8\"/><path d=\"M12 9v4l2.5 2.5M9 2h6\"/></svg>", "shop": "<svg viewBox=\"0 0 24 24\"><rect x=\"3\" y=\"8\" width=\"18\" height=\"4\" rx=\"1\"/><path d=\"M12 8v13M19 12v9H5v-9M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5\"/></svg>", "me": "<svg viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"8\" r=\"4\"/><path d=\"M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7\"/></svg>"};
 const TABS = [['score', NAVI.score, '赏罚'], ['study', NAVI.study, '学习'], ['focus', NAVI.focus, '专注'], ['shop', NAVI.shop, '商城'], ['me', NAVI.me, '我的']];
 const HERO = {
@@ -136,6 +153,7 @@ function focus() {
      <div class="btns"><button class="btn" data-a="${F.running ? 'fstop' : 'fstart'}">${F.running ? '放弃' : '▶ 专注'}</button>
      <button class="btn ghost" data-a="fmin" ${F.running ? 'disabled' : ''}>${F.minutes} 分钟 ▾</button></div>
      <div class="sec">选择专注任务</div><div class="chips">${tasks.map(t => `<button class="chip ${t === F.task ? 'on' : ''}" data-a="ftask" data-v="${esc(t)}">${esc(t)}</button>`).join('')}</div>
+     <div class="btns"><button class="btn ghost" data-a="fsnd">${soundOn() ? '🔔 提示音:开' : '🔕 提示音:关'}</button></div>
      <div class="empty" style="font-size:13px">每完成 10 分钟得 ${S.settings.focusPer10} 分</div>`;
 }
 setInterval(() => {
@@ -145,7 +163,7 @@ setInterval(() => {
   const t = $('#tt'); if (t) { t.textContent = fmtT(left); $('.timer').style.setProperty('--p', 100 - left / (F.minutes * 60) * 100); }
 }, 500);
 async function finishFocus() {
-  F.running = false;
+  F.running = false; playAlarm();
   try { navigator.vibrate && navigator.vibrate([300, 150, 300]); } catch {}
   try { const r = await api('/focus', 'POST', { childId: S.cid, task: F.task, minutes: F.minutes }); toast(`专注完成!${r.got ? '+' + r.got + ' 分' : ''}`); await refresh(); } catch (e) { toast(e.message); }
 }
@@ -209,11 +227,12 @@ document.addEventListener('click', async e => {
     else if (a === 'manual') { const s = +t.dataset.s; modal(`<h3>手动${s > 0 ? '加' : '扣'}分</h3><input id="mp" type="number" inputmode="numeric" placeholder="分数"><input id="mr" placeholder="原因(可不填)">`, async () => { const n = Math.abs(+$('#mp').value | 0); if (!n) throw new Error('请输入分数'); await api('/score', 'POST', { childId: S.cid, delta: s * n, reason: $('#mr').value }); refresh(); }); }
     else if (a === 'redeem') { const i = S.shop.find(x => x.id === id); ask('兑换', `用 ${i.cost} 分兑换「${esc(i.name)}」?`, async () => { await api('/redeem', 'POST', { childId: S.cid, itemId: id }); toast('兑换成功 🎉'); refresh(); }); }
     else if (a === 'checkin') { const r = await api('/checkin', 'POST', { childId: S.cid }); toast(`打卡成功 +${r.got}`); refresh(); }
-    else if (a === 'fstart') { F.endAt = Date.now() + F.minutes * 60000; F.running = true; render(); }
+    else if (a === 'fsnd') { store.set('xt_fsnd', soundOn() ? '0' : '1'); if (soundOn()) { unlockAudio(); playAlarm(); } render(); }
+    else if (a === 'fstart') { unlockAudio(); F.endAt = Date.now() + F.minutes * 60000; F.running = true; render(); }
     else if (a === 'fstop') ask('放弃专注?', '现在放弃就没有积分啦', async () => { F.running = false; render(); });
     else if (a === 'ftask') { F.task = t.dataset.v; render(); }
-    else if (a === 'fmin') modal(`<h3>专注时长</h3><div class="chips" style="justify-content:center;margin-bottom:6px">${[10, 15, 20, 30, 45, 60].map(m => `<button class="chip" data-a="setmin" data-v="${m}">${m} 分钟</button>`).join('')}</div>`);
-    else if (a === 'setmin') { F.minutes = +t.dataset.v; close(); render(); }
+    else if (a === 'fmin') modal(`<h3>专注时长</h3><div class="chips" style="justify-content:center;margin-bottom:6px">${[10, 15, 20, 30, 45, 60].map(m => `<button class="chip" data-a="setmin" data-v="${m}">${m} 分钟</button>`).join('')}</div><input id="cm" type="number" inputmode="numeric" min="1" max="180" placeholder="自定义分钟(1-180)" value="${F.minutes}">`, () => { const n = Math.round(+$('#cm').value); if (!(n >= 1 && n <= 180)) throw new Error('请输入 1-180 分钟'); F.minutes = n; store.set('xt_fmin', String(n)); render(); });
+    else if (a === 'setmin') { F.minutes = +t.dataset.v; store.set('xt_fmin', String(F.minutes)); close(); render(); }
     else if (a === 'mv') {
       if (!t.dataset.v && hist && history.state && history.state.me) return history.back(); // 「‹ 返回」= 浏览器返回
       meV = t.dataset.v; if (meV) pushH(); render();
