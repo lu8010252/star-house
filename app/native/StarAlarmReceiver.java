@@ -14,6 +14,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.os.Vibrator;
 
 public class StarAlarmReceiver extends BroadcastReceiver {
@@ -21,32 +22,46 @@ public class StarAlarmReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context c, Intent in) {
-        String title = in.getStringExtra("title");
-        String body = in.getStringExtra("body");
-        ring(c, title, body, goAsync());
+        ring(c, in.getStringExtra("title"), in.getStringExtra("body"), goAsync(), "闹钟");
     }
 
-    // 响铃 + 通知 + 震动(闹钟广播和前台服务都会调用,15 秒内只响一次)
-    static synchronized void ring(Context c, String title, String body, final PendingResult pr) {
+    // 点亮屏幕 + 带闹钟铃声的通知(系统播放) + 应用内铃声 + 震动;闹钟广播和前台服务都会调用,15 秒内只响一次
+    static synchronized void ring(Context c, String title, String body, final PendingResult pr, String src) {
         long now = System.currentTimeMillis();
         if (now - lastRing < 15000) { if (pr != null) pr.finish(); return; }
         lastRing = now;
+        try { c.getSharedPreferences("star", Context.MODE_PRIVATE).edit().putLong("ringAt", now).putString("ringSrc", src).apply(); } catch (Exception ignored) {}
         if (title == null) title = "专注完成啦";
         if (body == null) body = "";
 
-        // 1) 通知(静音渠道,声音由下面的铃声负责,这样没开通知权限时也能响)
+        Uri snd = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+        if (snd == null) snd = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+        final AudioAttributes aa = new AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ALARM)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
+
+        // 0) 点亮屏幕(像真正的闹钟一样),很多系统在息屏时会把响铃推迟到亮屏
+        try {
+            PowerManager pm = (PowerManager) c.getSystemService(Context.POWER_SERVICE);
+            @SuppressWarnings("deprecation")
+            PowerManager.WakeLock sw = pm.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP, "starhouse:ring");
+            sw.acquire(10000);
+        } catch (Exception ignored) {}
+
+        // 1) 通知:渠道自带闹钟铃声+震动,由系统播放
         try {
             NotificationManager nm = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
             Notification.Builder b;
             if (Build.VERSION.SDK_INT >= 26) {
-                NotificationChannel ch = new NotificationChannel("star_alarm", "专注到点提醒", NotificationManager.IMPORTANCE_HIGH);
-                ch.setSound(null, null);
-                ch.enableVibration(false);
+                NotificationChannel ch = new NotificationChannel("star_alarm2", "专注到点提醒", NotificationManager.IMPORTANCE_HIGH);
+                ch.setSound(snd, aa);
+                ch.enableVibration(true);
+                ch.setVibrationPattern(new long[]{0, 500, 250, 500, 250, 500});
                 ch.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
                 nm.createNotificationChannel(ch);
-                b = new Notification.Builder(c, "star_alarm");
+                b = new Notification.Builder(c, "star_alarm2");
             } else {
-                b = new Notification.Builder(c).setPriority(Notification.PRIORITY_HIGH);
+                b = new Notification.Builder(c).setPriority(Notification.PRIORITY_HIGH).setSound(snd);
             }
             Intent open = new Intent(c, MainActivity.class);
             open.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
@@ -54,19 +69,15 @@ public class StarAlarmReceiver extends BroadcastReceiver {
             b.setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
                 .setContentTitle(title).setContentText(body)
                 .setCategory(Notification.CATEGORY_ALARM)
-                .setContentIntent(pi).setAutoCancel(true);
+                .setContentIntent(pi).setFullScreenIntent(pi, true).setAutoCancel(true);
             nm.notify(1001, b.build());
         } catch (Exception ignored) {}
 
-        // 2) 响铃(闹钟音量通道)+ 震动,持续约 8 秒
+        // 2) 应用内铃声 + 震动(与通知互为保险),持续约 8 秒
         Ringtone r = null;
         try {
-            Uri snd = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
-            if (snd == null) snd = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
             r = RingtoneManager.getRingtone(c.getApplicationContext(), snd);
-            r.setAudioAttributes(new AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ALARM)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
+            r.setAudioAttributes(aa);
             if (Build.VERSION.SDK_INT >= 28) r.setLooping(true);
             r.play();
         } catch (Exception ignored) {}

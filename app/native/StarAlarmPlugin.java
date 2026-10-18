@@ -5,6 +5,8 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import androidx.core.content.ContextCompat;
+import android.content.SharedPreferences;
+import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
@@ -29,6 +31,7 @@ public class StarAlarmPlugin extends Plugin {
             String title = call.getString("title", "专注完成啦");
             String body = call.getString("body", "");
             Context c = getContext();
+            c.getSharedPreferences("star", Context.MODE_PRIVATE).edit().putLong("setAt", at).putLong("setTime", System.currentTimeMillis()).apply();
             AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
             Intent open = new Intent(c, MainActivity.class);
             PendingIntent showPi = PendingIntent.getActivity(c, 0, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
@@ -55,5 +58,15 @@ public class StarAlarmPlugin extends Plugin {
         } catch (Exception e) {
             call.reject(e.getMessage());
         }
+    }
+
+    @PluginMethod
+    public void getInfo(PluginCall call) {
+        SharedPreferences sp = getContext().getSharedPreferences("star", Context.MODE_PRIVATE);
+        JSObject o = new JSObject();
+        o.put("setAt", String.valueOf(sp.getLong("setAt", 0)));
+        o.put("ringAt", String.valueOf(sp.getLong("ringAt", 0)));
+        o.put("ringSrc", sp.getString("ringSrc", ""));
+        call.resolve(o);
     }
 }

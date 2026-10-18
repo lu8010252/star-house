@@ -65,7 +65,7 @@ public class StarFocusService extends Service {
 
         h.removeCallbacksAndMessages(null);
         h.postDelayed(() -> {
-            StarAlarmReceiver.ring(getApplicationContext(), title, body, null);
+            StarAlarmReceiver.ring(getApplicationContext(), title, body, null, "服务");
             h.postDelayed(this::stopSelf, 9000);
         }, left);
         return START_NOT_STICKY;

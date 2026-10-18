@@ -59,7 +59,7 @@ jobs:
         working-directory: app/android
         run: |
           cp ../native/*.java app/src/main/java/com/starhouse/app/
-          sed -i 's#<application#<uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>\n    <uses-permission android:name="android.permission.WAKE_LOCK"/>\n    <application#' app/src/main/AndroidManifest.xml
+          sed -i 's#<application#<uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>\n    <uses-permission android:name="android.permission.WAKE_LOCK"/>\n    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>\n    <application#' app/src/main/AndroidManifest.xml
           sed -i 's#</application>#    <receiver android:name=".StarAlarmReceiver" android:exported="false"/>\n    <service android:name=".StarFocusService" android:exported="false" android:foregroundServiceType="specialUse"><property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="focus_timer"/></service>\n    </application>#' app/src/main/AndroidManifest.xml
           grep -n "StarAlarmReceiver\|StarFocusService\|FOREGROUND" app/src/main/AndroidManifest.xml
           ls app/src/main/java/com/starhouse/app/

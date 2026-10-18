@@ -166,7 +166,13 @@ function shop() {
 }
 
 const fmtT = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+const hms = t => t > 0 ? new Date(t).toTimeString().slice(0, 8) : '无';
+async function updateDbg() {
+  const d = $('#dbg'); if (!d || !SA) return;
+  try { const i = await SA.getInfo(); d.textContent = `闹钟预定 ${hms(+i.setAt)} · 实际响铃 ${hms(+i.ringAt)}${i.ringSrc ? '(' + i.ringSrc + ')' : ''}`; } catch {}
+}
 function focus() {
+  setTimeout(updateDbg, 50);
   const tasks = S.settings.focusTasks || [];
   if (!F.task) F.task = tasks[0] || '专注';
   const left = F.running ? Math.max(0, Math.ceil((F.endAt - Date.now()) / 1000)) : F.minutes * 60, p = F.running ? 100 - left / (F.minutes * 60) * 100 : 0;
@@ -176,6 +182,7 @@ function focus() {
      <button class="btn ghost" data-a="fmin" ${F.running ? 'disabled' : ''}>${F.minutes} 分钟 ▾</button></div>
      <div class="sec">选择专注任务</div><div class="chips">${tasks.map(t => `<button class="chip ${t === F.task ? 'on' : ''}" data-a="ftask" data-v="${esc(t)}">${esc(t)}</button>`).join('')}</div>
      <div class="btns"><button class="btn ghost" data-a="fsnd">${soundOn() ? '🔔 提示音:开' : '🔕 提示音:关'}</button>${NATIVE ? '<button class="btn ghost" data-a="ftest">测试锁屏提醒</button>' : ''}</div>
+     <div class="empty" id="dbg" style="font-size:11px;opacity:.6"></div>
      <div class="empty" style="font-size:13px">每完成 10 分钟得 ${S.settings.focusPer10} 分</div>`;
 }
 const focusTick = () => {
@@ -187,8 +194,11 @@ const focusTick = () => {
 setInterval(focusTick, 500);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { focusTick(); if (F.running && S.tab === 'focus') render(); } });
 async function finishFocus() {
-  const late = Date.now() - F.endAt > 5000; // 锁屏期间已由系统通知提醒,解锁后不再重复响
-  F.running = false; saveF(); cancelFocusNotice(); if (!(NATIVE && late)) playAlarm();
+  const endAt = F.endAt, late = Date.now() - endAt > 5000; // late:不是准点完成(息屏/后台期间到点)
+  F.running = false; saveF(); cancelFocusNotice();
+  let skip = false; // 原生闹钟已经准点响过就不再重复响
+  try { if (SA) { const i = await SA.getInfo(); skip = +i.ringAt >= endAt - 3000; } else skip = !!(LN && late); } catch {}
+  if (!skip) playAlarm();
   try { navigator.vibrate && navigator.vibrate([300, 150, 300]); } catch {}
   try { const r = await api('/focus', 'POST', { childId: S.cid, task: F.task, minutes: F.minutes }); toast(`专注完成!${r.got ? '+' + r.got + ' 分' : ''}`); await refresh(); } catch (e) { toast(e.message); }
 }
