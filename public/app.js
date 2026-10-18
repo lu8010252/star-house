@@ -7,21 +7,24 @@ const soundOn = () => store.get('xt_fsnd') !== '0';
 function unlockAudio() { try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === 'suspended') AC.resume(); } catch {} }
 // APK:锁屏时网页被系统暂停,改用原生本地通知(带声音+震动)到点提醒
 const LN = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications;
+const SA = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.StarAlarm; // 自写原生闹钟插件(优先)
+const NATIVE = SA || LN;
 const FN_ID = 1001;
 async function schedFocusNotice(at, test) {
-  if (!LN || (!test && !soundOn())) return;
+  if (!NATIVE || (!test && !soundOn())) return;
   try {
-    let p = await LN.checkPermissions(); if (p.display !== 'granted') p = await LN.requestPermissions();
-    if (p.display !== 'granted') return toast('没有通知权限,锁屏时不会提醒');
-    // Android 12+:精确闹钟权限("闹钟和提醒")没开时,系统会延迟甚至不按时响
-    try { const x = await LN.checkExactNotificationSetting(); if (x.exact_alarm !== 'granted') { toast('请在设置里允许"闹钟和提醒",锁屏才会准时响'); LN.changeExactNotificationSetting(); } } catch {}
-    await LN.createChannel({ id: 'focus2', name: '专注提醒', importance: 5, vibration: true, visibility: 1 });
-    await LN.cancel({ notifications: [{ id: FN_ID }] });
-    await LN.schedule({ notifications: [{ id: FN_ID, title: test ? '测试提醒' : '专注完成啦 🎉', body: test ? '听到声音就说明锁屏提醒可用' : `${F.task} ${F.minutes} 分钟,回来领星星吧`, channelId: 'focus2', schedule: { at: new Date(at || F.endAt + 1500), allowWhileIdle: true } }] });
+    if (LN) { let p = await LN.checkPermissions(); if (p.display !== 'granted') p = await LN.requestPermissions(); if (p.display !== 'granted') toast('没开通知权限:到点只响铃、不显示通知'); }
+    const t = at || F.endAt + 1500, title = test ? '测试提醒' : '专注完成啦 🎉', body = test ? '听到铃声就说明锁屏提醒可用' : `${F.task} ${F.minutes} 分钟,回来领星星吧`;
+    if (SA) await SA.schedule({ at: String(t), title, body });
+    else {
+      await LN.createChannel({ id: 'focus2', name: '专注提醒', importance: 5, vibration: true, visibility: 1 });
+      await LN.cancel({ notifications: [{ id: FN_ID }] });
+      await LN.schedule({ notifications: [{ id: FN_ID, title, body, channelId: 'focus2', schedule: { at: new Date(t), allowWhileIdle: true } }] });
+    }
     if (test) toast('已设置,请锁屏等 10 秒');
   } catch (e) { toast('锁屏提醒设置失败:' + (e && e.message || e)); }
 }
-const cancelFocusNotice = () => { try { LN && LN.cancel({ notifications: [{ id: FN_ID }] }); } catch {} };
+const cancelFocusNotice = () => { try { if (SA) SA.cancel(); else if (LN) LN.cancel({ notifications: [{ id: FN_ID }] }); } catch {} };
 function playAlarm() {
   if (!soundOn()) return;
   try {
@@ -170,7 +173,7 @@ function focus() {
      <div class="btns"><button class="btn" data-a="${F.running ? 'fstop' : 'fstart'}">${F.running ? '放弃' : '▶ 专注'}</button>
      <button class="btn ghost" data-a="fmin" ${F.running ? 'disabled' : ''}>${F.minutes} 分钟 ▾</button></div>
      <div class="sec">选择专注任务</div><div class="chips">${tasks.map(t => `<button class="chip ${t === F.task ? 'on' : ''}" data-a="ftask" data-v="${esc(t)}">${esc(t)}</button>`).join('')}</div>
-     <div class="btns"><button class="btn ghost" data-a="fsnd">${soundOn() ? '🔔 提示音:开' : '🔕 提示音:关'}</button>${LN ? '<button class="btn ghost" data-a="ftest">测试锁屏提醒</button>' : ''}</div>
+     <div class="btns"><button class="btn ghost" data-a="fsnd">${soundOn() ? '🔔 提示音:开' : '🔕 提示音:关'}</button>${NATIVE ? '<button class="btn ghost" data-a="ftest">测试锁屏提醒</button>' : ''}</div>
      <div class="empty" style="font-size:13px">每完成 10 分钟得 ${S.settings.focusPer10} 分</div>`;
 }
 setInterval(() => {
@@ -181,7 +184,7 @@ setInterval(() => {
 }, 500);
 async function finishFocus() {
   const late = Date.now() - F.endAt > 5000; // 锁屏期间已由系统通知提醒,解锁后不再重复响
-  F.running = false; cancelFocusNotice(); if (!(LN && late)) playAlarm();
+  F.running = false; cancelFocusNotice(); if (!(NATIVE && late)) playAlarm();
   try { navigator.vibrate && navigator.vibrate([300, 150, 300]); } catch {}
   try { const r = await api('/focus', 'POST', { childId: S.cid, task: F.task, minutes: F.minutes }); toast(`专注完成!${r.got ? '+' + r.got + ' 分' : ''}`); await refresh(); } catch (e) { toast(e.message); }
 }

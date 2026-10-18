@@ -55,6 +55,14 @@ jobs:
           npx cap sync android
           sed -i 's#<application#<uses-permission android:name="android.permission.CAMERA"/>\n    <uses-permission android:name="android.permission.VIBRATE"/>\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>\n    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>\n    <application#' android/app/src/main/AndroidManifest.xml
 
+      - name: 加入原生闹钟提醒插件(锁屏到点响铃)
+        working-directory: app/android
+        run: |
+          cp ../native/*.java app/src/main/java/com/starhouse/app/
+          sed -i 's#</application>#    <receiver android:name=".StarAlarmReceiver" android:exported="false"/>\n    </application>#' app/src/main/AndroidManifest.xml
+          grep -n "StarAlarmReceiver" app/src/main/AndroidManifest.xml
+          ls app/src/main/java/com/starhouse/app/
+
       - name: 状态栏/导航栏配色(与页面一致,深色图标)
         working-directory: app/android/app/src/main/res/values
         run: |
