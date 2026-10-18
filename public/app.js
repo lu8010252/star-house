@@ -8,15 +8,18 @@ function unlockAudio() { try { AC = AC || new (window.AudioContext || window.web
 // APK:锁屏时网页被系统暂停,改用原生本地通知(带声音+震动)到点提醒
 const LN = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications;
 const FN_ID = 1001;
-async function schedFocusNotice() {
-  if (!LN || !soundOn()) return;
+async function schedFocusNotice(at, test) {
+  if (!LN || (!test && !soundOn())) return;
   try {
     let p = await LN.checkPermissions(); if (p.display !== 'granted') p = await LN.requestPermissions();
-    if (p.display !== 'granted') return;
-    await LN.createChannel({ id: 'focus', name: '专注提醒', importance: 5, vibration: true, visibility: 1 });
+    if (p.display !== 'granted') return toast('没有通知权限,锁屏时不会提醒');
+    // Android 12+:精确闹钟权限("闹钟和提醒")没开时,系统会延迟甚至不按时响
+    try { const x = await LN.checkExactNotificationSetting(); if (x.exact_alarm !== 'granted') { toast('请在设置里允许"闹钟和提醒",锁屏才会准时响'); LN.changeExactNotificationSetting(); } } catch {}
+    await LN.createChannel({ id: 'focus2', name: '专注提醒', importance: 5, vibration: true, visibility: 1 });
     await LN.cancel({ notifications: [{ id: FN_ID }] });
-    await LN.schedule({ notifications: [{ id: FN_ID, title: '专注完成啦 🎉', body: `${F.task} ${F.minutes} 分钟,回来领星星吧`, channelId: 'focus', schedule: { at: new Date(F.endAt + 1500), allowWhileIdle: true } }] });
-  } catch {}
+    await LN.schedule({ notifications: [{ id: FN_ID, title: test ? '测试提醒' : '专注完成啦 🎉', body: test ? '听到声音就说明锁屏提醒可用' : `${F.task} ${F.minutes} 分钟,回来领星星吧`, channelId: 'focus2', schedule: { at: new Date(at || F.endAt + 1500), allowWhileIdle: true } }] });
+    if (test) toast('已设置,请锁屏等 10 秒');
+  } catch (e) { toast('锁屏提醒设置失败:' + (e && e.message || e)); }
 }
 const cancelFocusNotice = () => { try { LN && LN.cancel({ notifications: [{ id: FN_ID }] }); } catch {} };
 function playAlarm() {
@@ -167,7 +170,7 @@ function focus() {
      <div class="btns"><button class="btn" data-a="${F.running ? 'fstop' : 'fstart'}">${F.running ? '放弃' : '▶ 专注'}</button>
      <button class="btn ghost" data-a="fmin" ${F.running ? 'disabled' : ''}>${F.minutes} 分钟 ▾</button></div>
      <div class="sec">选择专注任务</div><div class="chips">${tasks.map(t => `<button class="chip ${t === F.task ? 'on' : ''}" data-a="ftask" data-v="${esc(t)}">${esc(t)}</button>`).join('')}</div>
-     <div class="btns"><button class="btn ghost" data-a="fsnd">${soundOn() ? '🔔 提示音:开' : '🔕 提示音:关'}</button></div>
+     <div class="btns"><button class="btn ghost" data-a="fsnd">${soundOn() ? '🔔 提示音:开' : '🔕 提示音:关'}</button>${LN ? '<button class="btn ghost" data-a="ftest">测试锁屏提醒</button>' : ''}</div>
      <div class="empty" style="font-size:13px">每完成 10 分钟得 ${S.settings.focusPer10} 分</div>`;
 }
 setInterval(() => {
@@ -242,6 +245,7 @@ document.addEventListener('click', async e => {
     else if (a === 'manual') { const s = +t.dataset.s; modal(`<h3>手动${s > 0 ? '加' : '扣'}分</h3><input id="mp" type="number" inputmode="numeric" placeholder="分数"><input id="mr" placeholder="原因(可不填)">`, async () => { const n = Math.abs(+$('#mp').value | 0); if (!n) throw new Error('请输入分数'); await api('/score', 'POST', { childId: S.cid, delta: s * n, reason: $('#mr').value }); refresh(); }); }
     else if (a === 'redeem') { const i = S.shop.find(x => x.id === id); ask('兑换', `用 ${i.cost} 分兑换「${esc(i.name)}」?`, async () => { await api('/redeem', 'POST', { childId: S.cid, itemId: id }); toast('兑换成功 🎉'); refresh(); }); }
     else if (a === 'checkin') { const r = await api('/checkin', 'POST', { childId: S.cid }); toast(`打卡成功 +${r.got}`); refresh(); }
+    else if (a === 'ftest') schedFocusNotice(Date.now() + 10000, true);
     else if (a === 'fsnd') { store.set('xt_fsnd', soundOn() ? '0' : '1'); if (soundOn()) { unlockAudio(); playAlarm(); } render(); }
     else if (a === 'fstart') { unlockAudio(); F.endAt = Date.now() + F.minutes * 60000; F.running = true; schedFocusNotice(); render(); }
     else if (a === 'fstop') ask('放弃专注?', '现在放弃就没有积分啦', async () => { F.running = false; cancelFocusNotice(); render(); });
