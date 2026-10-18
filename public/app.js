@@ -5,6 +5,20 @@ const F = { task: '', minutes: Math.min(180, Math.max(1, +store.get('xt_fmin') |
 let AC = null;
 const soundOn = () => store.get('xt_fsnd') !== '0';
 function unlockAudio() { try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === 'suspended') AC.resume(); } catch {} }
+// APK:锁屏时网页被系统暂停,改用原生本地通知(带声音+震动)到点提醒
+const LN = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications;
+const FN_ID = 1001;
+async function schedFocusNotice() {
+  if (!LN || !soundOn()) return;
+  try {
+    let p = await LN.checkPermissions(); if (p.display !== 'granted') p = await LN.requestPermissions();
+    if (p.display !== 'granted') return;
+    await LN.createChannel({ id: 'focus', name: '专注提醒', importance: 5, vibration: true, visibility: 1 });
+    await LN.cancel({ notifications: [{ id: FN_ID }] });
+    await LN.schedule({ notifications: [{ id: FN_ID, title: '专注完成啦 🎉', body: `${F.task} ${F.minutes} 分钟,回来领星星吧`, channelId: 'focus', schedule: { at: new Date(F.endAt + 1500), allowWhileIdle: true } }] });
+  } catch {}
+}
+const cancelFocusNotice = () => { try { LN && LN.cancel({ notifications: [{ id: FN_ID }] }); } catch {} };
 function playAlarm() {
   if (!soundOn()) return;
   try {
@@ -163,7 +177,8 @@ setInterval(() => {
   const t = $('#tt'); if (t) { t.textContent = fmtT(left); $('.timer').style.setProperty('--p', 100 - left / (F.minutes * 60) * 100); }
 }, 500);
 async function finishFocus() {
-  F.running = false; playAlarm();
+  const late = Date.now() - F.endAt > 5000; // 锁屏期间已由系统通知提醒,解锁后不再重复响
+  F.running = false; cancelFocusNotice(); if (!(LN && late)) playAlarm();
   try { navigator.vibrate && navigator.vibrate([300, 150, 300]); } catch {}
   try { const r = await api('/focus', 'POST', { childId: S.cid, task: F.task, minutes: F.minutes }); toast(`专注完成!${r.got ? '+' + r.got + ' 分' : ''}`); await refresh(); } catch (e) { toast(e.message); }
 }
@@ -228,8 +243,8 @@ document.addEventListener('click', async e => {
     else if (a === 'redeem') { const i = S.shop.find(x => x.id === id); ask('兑换', `用 ${i.cost} 分兑换「${esc(i.name)}」?`, async () => { await api('/redeem', 'POST', { childId: S.cid, itemId: id }); toast('兑换成功 🎉'); refresh(); }); }
     else if (a === 'checkin') { const r = await api('/checkin', 'POST', { childId: S.cid }); toast(`打卡成功 +${r.got}`); refresh(); }
     else if (a === 'fsnd') { store.set('xt_fsnd', soundOn() ? '0' : '1'); if (soundOn()) { unlockAudio(); playAlarm(); } render(); }
-    else if (a === 'fstart') { unlockAudio(); F.endAt = Date.now() + F.minutes * 60000; F.running = true; render(); }
-    else if (a === 'fstop') ask('放弃专注?', '现在放弃就没有积分啦', async () => { F.running = false; render(); });
+    else if (a === 'fstart') { unlockAudio(); F.endAt = Date.now() + F.minutes * 60000; F.running = true; schedFocusNotice(); render(); }
+    else if (a === 'fstop') ask('放弃专注?', '现在放弃就没有积分啦', async () => { F.running = false; cancelFocusNotice(); render(); });
     else if (a === 'ftask') { F.task = t.dataset.v; render(); }
     else if (a === 'fmin') modal(`<h3>专注时长</h3><div class="chips" style="justify-content:center;margin-bottom:6px">${[10, 15, 20, 30, 45, 60].map(m => `<button class="chip" data-a="setmin" data-v="${m}">${m} 分钟</button>`).join('')}</div><input id="cm" type="number" inputmode="numeric" min="1" max="180" placeholder="自定义分钟(1-180)" value="${F.minutes}">`, () => { const n = Math.round(+$('#cm').value); if (!(n >= 1 && n <= 180)) throw new Error('请输入 1-180 分钟'); F.minutes = n; store.set('xt_fmin', String(n)); render(); });
     else if (a === 'setmin') { F.minutes = +t.dataset.v; store.set('xt_fmin', String(F.minutes)); close(); render(); }
