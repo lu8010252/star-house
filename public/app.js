@@ -12,7 +12,7 @@ const LN = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plug
 const SA = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.StarAlarm; // 自写原生闹钟插件(优先)
 const NATIVE = SA || LN;
 const FN_ID = 1001;
-const fmode = () => (SA && store.get('xt_fmode') !== 'app') ? 'sys' : 'app'; // sys=交给系统时钟响铃(默认,最稳);app=应用自己的闹钟
+const fmode = () => SA ? 'sys' : 'app'; // sys=交给系统时钟响铃(最稳,不支持时自动退回应用内闹钟)
 async function schedFocusNotice(at, test) {
   if (!NATIVE || (!test && !soundOn())) return;
   try {
@@ -173,13 +173,7 @@ function shop() {
 }
 
 const fmtT = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
-const hms = t => t > 0 ? new Date(t).toTimeString().slice(0, 8) : '无';
-async function updateDbg() {
-  const d = $('#dbg'); if (!d || !SA) return;
-  try { const i = await SA.getInfo(); d.textContent = `闹钟预定 ${hms(+i.setAt)} · 实际响铃 ${hms(+i.ringAt)}${i.ringSrc ? '(' + i.ringSrc + ')' : ''}`; } catch {}
-}
 function focus() {
-  setTimeout(updateDbg, 50);
   const tasks = S.settings.focusTasks || [];
   if (!F.task) F.task = tasks[0] || '专注';
   const left = F.running ? Math.max(0, Math.ceil((F.endAt - Date.now()) / 1000)) : F.minutes * 60, p = F.running ? 100 - left / (F.minutes * 60) * 100 : 0;
@@ -188,10 +182,10 @@ function focus() {
      <div class="btns"><button class="btn" data-a="${F.running ? 'fstop' : 'fstart'}">${F.running ? '放弃' : '▶ 专注'}</button>
      <button class="btn ghost" data-a="fmin" ${F.running ? 'disabled' : ''}>${F.minutes} 分钟 ▾</button></div>
      <div class="sec">选择专注任务</div><div class="chips">${tasks.map(t => `<button class="chip ${t === F.task ? 'on' : ''}" data-a="ftask" data-v="${esc(t)}">${esc(t)}</button>`).join('')}</div>
-     <div class="btns"><button class="btn ghost" data-a="fsnd">${soundOn() ? '🔔 提示音:开' : '🔕 提示音:关'}</button>${NATIVE ? '<button class="btn ghost" data-a="ftest">测试锁屏提醒</button>' : ''}</div>
-     ${SA ? `<div class="btns"><button class="btn ghost" data-a="fmode">⏰ 提醒方式:${fmode() === 'sys' ? '系统时钟' : '应用内'}</button></div>` : ''}
-     <div class="empty" id="dbg" style="font-size:11px;opacity:.6"></div>
-     <div class="empty" style="font-size:13px">每完成 10 分钟得 ${S.settings.focusPer10} 分</div>`;
+     <div class="fset">
+       <div class="fr"><div><b>${SA ? '⏰' : '🔔'} 到点提醒</b><small>${!soundOn() ? '已关闭,到点不会响铃' : SA ? '息屏、锁屏也会由系统时钟准时响铃' : '页面打开时到点响铃'}</small></div><button class="sw ${soundOn() ? 'on' : ''}" data-a="fsnd" aria-label="到点提醒"></button></div>
+       <div class="fr"><div><b>⭐ 专注奖励</b><small>每满 10 分钟得 ${S.settings.focusPer10} 分</small></div></div>
+     </div>`;
 }
 const focusTick = () => {
   if (!F.running || !S.cid) return;
@@ -271,8 +265,6 @@ document.addEventListener('click', async e => {
     else if (a === 'manual') { const s = +t.dataset.s; modal(`<h3>手动${s > 0 ? '加' : '扣'}分</h3><input id="mp" type="number" inputmode="numeric" placeholder="分数"><input id="mr" placeholder="原因(可不填)">`, async () => { const n = Math.abs(+$('#mp').value | 0); if (!n) throw new Error('请输入分数'); await api('/score', 'POST', { childId: S.cid, delta: s * n, reason: $('#mr').value }); refresh(); }); }
     else if (a === 'redeem') { const i = S.shop.find(x => x.id === id); ask('兑换', `用 ${i.cost} 分兑换「${esc(i.name)}」?`, async () => { await api('/redeem', 'POST', { childId: S.cid, itemId: id }); toast('兑换成功 🎉'); refresh(); }); }
     else if (a === 'checkin') { const r = await api('/checkin', 'POST', { childId: S.cid }); toast(`打卡成功 +${r.got}`); refresh(); }
-    else if (a === 'fmode') { store.set('xt_fmode', fmode() === 'sys' ? 'app' : 'sys'); toast(fmode() === 'sys' ? '到点由系统时钟响铃(息屏也准)' : '到点由应用自己提醒'); render(); }
-    else if (a === 'ftest') schedFocusNotice(Date.now() + 10000, true);
     else if (a === 'fsnd') { store.set('xt_fsnd', soundOn() ? '0' : '1'); if (soundOn()) { unlockAudio(); playAlarm(); } render(); }
     else if (a === 'fstart') { unlockAudio(); F.endAt = Date.now() + F.minutes * 60000; F.running = true; F.sys = false; saveF(); schedFocusNotice(); render(); }
     else if (a === 'fstop') ask('放弃专注?', '现在放弃就没有积分啦', async () => { cancelFocusNotice(true); F.running = false; F.sys = false; saveF(); render(); });
