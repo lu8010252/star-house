@@ -1,11 +1,15 @@
 package com.starhouse.app;
 
+import android.app.Activity;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import androidx.core.content.ContextCompat;
 import android.content.SharedPreferences;
+import android.os.Build;
+import android.provider.AlarmClock;
+import java.util.Calendar;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -68,5 +72,45 @@ public class StarAlarmPlugin extends Plugin {
         o.put("ringAt", String.valueOf(sp.getLong("ringAt", 0)));
         o.put("ringSrc", sp.getString("ringSrc", ""));
         call.resolve(o);
+    }
+
+    // 交给系统时钟响铃(系统时钟不受第三方应用的后台限制):先用「计时器」,不支持再用「闹钟」(精度到分钟,向上取整)
+    @PluginMethod
+    public void systemTimer(PluginCall call) {
+        JSObject o = new JSObject();
+        Integer sec = call.getInt("seconds", 60);
+        int seconds = Math.max(1, sec == null ? 60 : sec);
+        String label = call.getString("label", "专注完成");
+        Activity a = getActivity();
+        try {
+            Intent i = new Intent(AlarmClock.ACTION_SET_TIMER)
+                .putExtra(AlarmClock.EXTRA_LENGTH, seconds)
+                .putExtra(AlarmClock.EXTRA_MESSAGE, label)
+                .putExtra(AlarmClock.EXTRA_SKIP_UI, true);
+            a.startActivity(i);
+            o.put("method", "timer"); call.resolve(o); return;
+        } catch (Exception ignored) {}
+        try {
+            Calendar cal = Calendar.getInstance();
+            cal.setTimeInMillis(System.currentTimeMillis() + seconds * 1000L);
+            if (cal.get(Calendar.SECOND) > 0 || cal.get(Calendar.MILLISECOND) > 0) { cal.set(Calendar.SECOND, 0); cal.add(Calendar.MINUTE, 1); }
+            Intent i = new Intent(AlarmClock.ACTION_SET_ALARM)
+                .putExtra(AlarmClock.EXTRA_HOUR, cal.get(Calendar.HOUR_OF_DAY))
+                .putExtra(AlarmClock.EXTRA_MINUTES, cal.get(Calendar.MINUTE))
+                .putExtra(AlarmClock.EXTRA_MESSAGE, label)
+                .putExtra(AlarmClock.EXTRA_SKIP_UI, true);
+            a.startActivity(i);
+            o.put("method", "alarm"); call.resolve(o); return;
+        } catch (Exception ignored) {}
+        o.put("method", "none"); call.resolve(o);
+    }
+
+    // 放弃专注时尽力取消系统计时器(部分系统时钟不支持)
+    @PluginMethod
+    public void cancelSystemTimer(PluginCall call) {
+        try {
+            if (Build.VERSION.SDK_INT >= 26) getActivity().startActivity(new Intent(AlarmClock.ACTION_DISMISS_TIMER));
+        } catch (Exception ignored) {}
+        call.resolve();
     }
 }
