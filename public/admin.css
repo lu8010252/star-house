@@ -105,3 +105,25 @@ input[type=date] { padding: 8px 10px; border-radius: 12px; border: 2px solid var
 
 .frow .ck { justify-self: start; } .frow .ck input { width: auto; }
 .pd .ed, .pd.ed { flex-wrap: wrap; }
+
+/* ===== 玻璃质感主题(毛玻璃卡片 + 彩色光斑背景) ===== */
+:root { --glass: rgba(255,255,255,.52); --glass2: rgba(255,255,255,.38); --gline: rgba(255,255,255,.7); --gblur: blur(22px) saturate(170%); --line: rgba(155,123,255,.16); --gshadow: 0 8px 32px rgba(111,79,224,.12), inset 0 1px 0 rgba(255,255,255,.8); }
+body { background: radial-gradient(520px 420px at 8% 4%, #ffc6e0 0, transparent 70%), radial-gradient(560px 460px at 94% 10%, #cfc0ff 0, transparent 70%), radial-gradient(620px 520px at 78% 96%, #bfe0ff 0, transparent 70%), radial-gradient(480px 400px at 6% 88%, #ffe3b8 0, transparent 70%), #f6f1ff; background-attachment: fixed; }
+header { background: linear-gradient(90deg, rgba(255,126,182,.78), rgba(155,123,255,.78)); -webkit-backdrop-filter: var(--gblur); backdrop-filter: var(--gblur); border-bottom: 1px solid rgba(255,255,255,.4); box-shadow: 0 4px 24px rgba(155,123,255,.25); }
+header a { background: rgba(255,255,255,.28); border: 1px solid rgba(255,255,255,.5); }
+#tabs { background: var(--glass); -webkit-backdrop-filter: var(--gblur); backdrop-filter: var(--gblur); border-color: var(--gline); }
+#tabs button.on { box-shadow: 0 6px 16px rgba(155,123,255,.38), inset 0 1px 0 rgba(255,255,255,.4); }
+.box { background: var(--glass); -webkit-backdrop-filter: var(--gblur); backdrop-filter: var(--gblur); border: 1px solid var(--gline); box-shadow: var(--gshadow); }
+.col, .kid, .rbox, .rgrid div, .stats div, .tk { background: var(--glass2); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border: 1px solid var(--gline); box-shadow: inset 0 1px 0 rgba(255,255,255,.7); }
+.col.good { background: linear-gradient(rgba(220,250,238,.55), rgba(255,255,255,.35)); border-color: rgba(123,224,189,.45); }
+.col.bad { background: linear-gradient(rgba(255,230,236,.58), rgba(255,255,255,.35)); border-color: rgba(255,154,169,.45); }
+.it { background: rgba(255,255,255,.62); border: 1px solid rgba(255,255,255,.8); box-shadow: 0 2px 10px rgba(111,79,224,.07); }
+.rhead { border: 1px solid var(--gline); box-shadow: var(--gshadow); }
+select, input[type=text], input[type=number], input[type=password], input[type=date], input:not([type]) { background: rgba(255,255,255,.6); border: 1.5px solid rgba(255,255,255,.85); box-shadow: inset 0 1px 3px rgba(111,79,224,.08); }
+select:focus, input:focus { background: rgba(255,255,255,.85); border-color: var(--purple); }
+.b.g { background: rgba(236,230,255,.7); border: 1px solid rgba(255,255,255,.7); }
+.ck { background: rgba(255,255,255,.55); border: 1px solid rgba(255,255,255,.8); }
+tr:hover td { background: rgba(255,255,255,.45); } td, th { border-bottom-color: rgba(155,123,255,.13); }
+.pd, .ed { border-bottom-color: rgba(155,123,255,.18); }
+@media (min-width: 900px) { #tabs { border-right: 1px solid var(--gline); } }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { :root { --glass: rgba(255,255,255,.88); --glass2: rgba(255,255,255,.8); } }
