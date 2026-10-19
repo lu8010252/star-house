@@ -141,3 +141,5 @@
 .wish .wbar { display: block; width: 100%; height: 8px; border-radius: 4px; background: #f3edff; overflow: hidden; margin-bottom: 8px; } .wish .wbar i { display: block; height: 100%; background: linear-gradient(90deg, var(--yellow), var(--pink)); }
 .wish .wf { display: flex; justify-content: space-between; align-items: center; gap: 8px; } .wish small { color: var(--ink2); } .wish .wf button { margin-left: 6px; padding: 5px 12px; border-radius: 12px; background: var(--purple-l); font-weight: 700; font-size: 13px; }
 .rctl { margin-top: 14px; } .rctl .chips { justify-content: center; } .rctl .monthbar button:disabled { opacity: .3; }
+
+.secbtn { margin-left: auto; padding: 7px 16px; border-radius: 16px; background: linear-gradient(90deg, var(--pink), var(--purple)); color: #fff; font-size: 14px; font-weight: 800; box-shadow: 0 3px 8px -2px rgba(155,123,255,.6); }

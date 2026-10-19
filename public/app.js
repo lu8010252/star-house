@@ -225,10 +225,10 @@ async function study() {
   const list = await api(`/study?childId=${ch.id}&subject=${encodeURIComponent(stF.subject)}&kind=${encodeURIComponent(stF.kind)}`);
   const row = (arr, key) => `<div class="fchips">${['', ...arr].map(v => `<button class="fchip ${stF[key] === v ? 'on' : ''}" data-a="stf" data-k="${key}" data-v="${esc(v)}">${v ? esc(v) : '全部'}</button>`).join('')}</div>`;
   const hue = t => { let h = 0; for (const c of String(t)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
-  return hero('study', '<button class="herobtn" data-a="stadd">＋ 记录</button>') +
+  return hero('study') +
     `<div class="fpanel"><div class="frw"><span class="fl">📚<em>科目</em></span>${row(subs, 'subject')}</div><div class="frw"><span class="fl">📝<em>类型</em></span>${row(kinds, 'kind')}</div></div>
      <div class="wkbar"><span>🗓 本周学习 <b>${(S.swk || []).filter(c => c === ch.id).length}</b> 次</span><span>🏅 优秀 <b>${list.filter(x => isGold(x.score)).length}</b> 个</span><span>📒 共 <b>${list.length}</b> 条</span></div>
-     <div class="sec">学习记录</div>
+     <div class="sec">学习记录<button class="secbtn" data-a="stadd">＋ 记录</button></div>
      <div class="list">${list.map(x => `<div class="row srow" style="--h:${hue(x.subject)}"><div><span class="sb">${subjIc(x.subject)} ${esc(x.subject)}</span><span class="sk">${esc(x.kind)}</span>${x.note ? `<small>${esc(x.note)}</small>` : ''}<small>${x.d}</small></div><b class="sc ${isGold(x.score) ? 'gold' : ''}">${isGold(x.score) ? '⭐ ' : ''}${esc(x.score) || '✓'}</b></div>`).join('') || '<div class="empty">暂无记录<br>快去记录你的学习点滴吧</div>'}</div>`;
 }
 
