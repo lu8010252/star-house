@@ -1,6 +1,7 @@
 // 星星屋 · 家长后台
+window.APP_FROM = 'admin'; // 告诉服务器这次操作来自后台(操作日志里区分来源)
 const S = { children: [], rules: [], shop: [], settings: {}, cid: 0, tab: store.get('xa_tab') || 'dash', month: '', edit: '', add: '' };
-const TABS = [['dash', '📊', '首页看板'], ['kids', '🧒', '孩子管理'], ['rules', '⚖️', '赏罚规则'], ['shop', '🛍️', '商城'], ['logs', '📜', '积分记录'], ['study', '📚', '学习记录'], ['set', '⚙️', '系统设置']];
+const TABS = [['dash', '📊', '首页看板'], ['kids', '🧒', '孩子管理'], ['rules', '⚖️', '赏罚规则'], ['shop', '🛍️', '商城'], ['logs', '📜', '积分记录'], ['study', '📚', '学习记录'], ['rep', '📈', '周报月报'], ['audit', '🧾', '操作日志'], ['set', '⚙️', '系统设置']];
 const ym = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 S.month = ym(new Date());
 const shiftMonth = (m, n) => { const [y, mo] = m.split('-').map(Number); return ym(new Date(y, mo - 1 + n, 1)); };
@@ -13,7 +14,7 @@ async function load() {
 
 function render() {
   $('#tabs').innerHTML = TABS.map(([k, ic, n]) => `<button data-t="${k}" class="${S.tab === k ? 'on' : ''}"><i>${ic}</i>${n}</button>`).join('');
-  const f = { dash, kids, rules, shop, logs, study, set }[S.tab];
+  const f = { dash, kids, rules, shop, logs, study, rep, audit, set }[S.tab] || dash;
   Promise.resolve(f()).then(h => { $('#main').innerHTML = h; $('#main').classList.remove('filtering'); if (S.tab === 'dash' && $('#chart')) drawCharts(); });
 }
 const kidSel = () => `<select data-a="kid">${S.children.map(c => `<option value="${c.id}" ${c.id === S.cid ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>`;
@@ -27,7 +28,8 @@ async function dash() {
   const { cur: a, prev: b } = ST, d = a.net - b.net;
   const today = `<div class="box"><h3>今日概览 <small style="color:var(--ink2);font-weight:400">${T.d}</small></h3><div class="today">${T.kids.map(k => `<div class="tk"><b>${esc(k.name)}</b><span class="tp">⭐ ${k.points}</span><span class="p">+${k.gain}</span><span class="n">-${k.loss}</span><span class="${k.checked ? 'ok' : 'no'}">${k.checked ? '✅ 已打卡' : '⬜ 未打卡'}</span></div>`).join('')}</div>
     <h4 class="sub">🎁 待兑现奖励 <small>${T.pending.length}</small></h4>${T.pending.map(r => `<div class="pd"><span>${esc(r.child)} · ${esc(r.name)} <small>⭐${r.cost} · ${esc(r.d)}</small></span><button class="b" data-a="done" data-id="${r.id}">已兑现</button></div>`).join('') || '<div class="empty2">没有待兑现的奖励</div>'}</div>`;
-  return today + `<div class="box"><div class="bar">当前孩子 ${kidSel()} <button class="b g" data-a="mm" data-n="-1">←</button><b>${a.month}</b><button class="b g" data-a="mm" data-n="1">→</button><small>对比 ${b.month}</small></div>
+  const cl = S.claims && S.claims.length ? `<div class="box"><h3>🙋 待确认申报 <small style="color:var(--ink2);font-weight:400">${S.claims.length}</small></h3>${S.claims.map(c => `<div class="pd"><span>${esc(S.children.find(k => k.id === c.childId)?.name || '')} · ${c.icon ? esc(c.icon) + ' ' : ''}${esc(c.name)} <small>+${c.points} 分 · ${fmtTime(c.ts)}</small></span><span><button class="b" data-a="clok" data-id="${c.id}">通过</button> <button class="b g" data-a="clno" data-id="${c.id}">驳回</button></span></div>`).join('')}</div>` : '';
+  return cl + today + `<div class="box"><div class="bar">当前孩子 ${kidSel()} <button class="b g" data-a="mm" data-n="-1">←</button><b>${a.month}</b><button class="b g" data-a="mm" data-n="1">→</button><small>对比 ${b.month}</small></div>
     <div class="stats"><div><small>${a.month} 净得分</small><b>${a.net}</b></div><div><small>${b.month} 净得分</small><b>${b.net}</b></div><div><small>环比变化</small><b class="${d >= 0 ? 'p' : 'n'}">${sign(d)}</b></div></div></div>
     <div class="box"><h3>月度积分对比 <small style="color:var(--ink2);font-weight:400">每日净得分</small></h3><div class="legend"><span><i style="background:#6f8bff"></i>${a.month}</span><span><i style="background:#c3a5ff"></i>${b.month}</span></div><div id="chart"></div></div>
     <div class="box"><h3>积分分类对比 <small style="color:var(--ink2);font-weight:400">加分向上、扣分向下</small></h3><div class="cmp"><div><b>${a.month}</b>${bars(a)}</div><div><b>${b.month}</b>${bars(b)}</div></div></div>`;
@@ -89,7 +91,10 @@ const rules = () => {
 };
 const shop = () => `<div class="box"><div class="tool"><h3>兑换商品</h3>${search('搜索商品')}</div>
   <div class="cols one">${column('shop', 'shop', '🎁 商品列表', S.shop)}</div>
-  <p class="hint">按住左侧 ⠿ 上下拖动即可排序,前台商城按这里的顺序显示。库存兑完后前台变灰;每周限兑按「周一至周日」、每个孩子单独计数。</p></div>`;
+  <p class="hint">按住左侧 ⠿ 上下拖动即可排序,前台商城按这里的顺序显示。库存兑完后前台变灰;每周限兑按「周一至周日」、每个孩子单独计数。</p></div>
+  <div class="box"><h3>🌠 孩子的心愿 <small style="color:var(--ink2);font-weight:400">${(S.wishes || []).length}</small></h3>
+  ${(S.wishes || []).map(w => { const k = S.children.find(c => c.id === w.childId); return `<div class="pd ed" data-id="${w.id}"><span>${esc(k ? k.name : '')} · ${esc(w.icon || '🌠')} ${esc(w.name)} <small>${k ? '现有 ⭐' + (k.points || 0) : ''}</small></span><span>⭐<input data-k="cost" type="number" value="${w.cost}" style="width:80px"> <button class="b g" data-a="wsave">改分数</button> <button class="b" data-a="wshop">放进商城</button> <button class="b r" data-a="wdel">删除</button></span></div>`; }).join('') || '<div class="empty2">孩子还没许愿。她们在前台「商城」页底部可以许愿,许愿时会推送通知给你</div>'}
+  <p class="hint">「放进商城」会生成一件库存为 1 的商品,孩子攒够积分就能兑换;分数不合适可以先改再放。</p></div>`;
 
 // 搜索:只在页面上隐藏/显示,不重绘(输入不丢焦点);搜索时暂停排序
 document.addEventListener('input', e => {
@@ -142,7 +147,7 @@ async function logs() {
     <div class="bar"><select id="mrule"><option value="">自选分数</option>${rs.map(r => `<option value="${r.id}">${r.type === 'bad' ? '-' : '+'}${r.points} ${esc(r.icon || '')}${esc(r.name)}</option>`).join('')}</select><input id="md" type="number" placeholder="分数(扣分填负数)" style="width:150px"><input id="mr" placeholder="原因"><button class="b" data-a="manual">提交</button></div></div>
    <div class="box"><h3>积分记录</h3><div class="bar">${kidSel()}<input type="date" data-lf="from" value="${f.from}"><small>至</small><input type="date" data-lf="to" value="${f.to}">
      <select data-lf="kind">${[['', '全部'], ['gain', '只看加分'], ['loss', '只看扣分'], ['redeem', '只看兑换']].map(opt).join('')}</select><small>共 ${l.length} 条 · 净得分 <b class="${sum >= 0 ? 'p' : 'n'}">${sign(sum)}</b></small></div>
-    <table>${l.map(x => `<tr><td>${fmtTime(x.ts)}</td><td>${esc(x.reason)}</td><td class="${x.delta >= 0 ? 'p' : 'n'}">${x.delta ? sign(x.delta) : '-'}</td><td><button class="b g" data-a="undo" data-id="${x.id}">撤销</button></td></tr>`).join('') || '<tr><td>暂无</td></tr>'}</table></div>`;
+    <table>${l.map(x => `<tr><td>${fmtTime(x.ts)}</td><td>${esc(x.reason)} <small title="${x.by === 'app' ? '手机前台' : x.by === 'admin' ? '家长后台' : ''}">${x.by === 'app' ? '📱' : x.by === 'admin' ? '💻' : ''}</small></td><td class="${x.delta >= 0 ? 'p' : 'n'}">${x.delta ? sign(x.delta) : '-'}</td><td><button class="b g" data-a="undo" data-id="${x.id}">撤销</button></td></tr>`).join('') || '<tr><td>暂无</td></tr>'}</table></div>`;
 }
 
 // ---- 学习记录 ----
@@ -152,6 +157,24 @@ async function study() {
   return `<div class="box"><h3>学习记录</h3><div class="bar">${kidSel()}<small>共 ${l.length} 条</small></div><table>${l.map(x => `<tr><td>${x.d}</td><td>${esc(x.subject)} · ${esc(x.kind)}</td><td><b>${esc(x.score) || '✓'}</b></td><td>${esc(x.note)}</td><td><button class="b r" data-a="stdel" data-id="${x.id}">删除</button></td></tr>`).join('') || '<tr><td>暂无</td></tr>'}</table></div>`;
 }
 
+// ---- 周报月报 ----
+S.rp = { type: 'week', off: 0 }; let RP_TEXT = '';
+async function rep() {
+  if (!S.cid) return '<div class="box">先添加孩子</div>';
+  const R = await api(`/report?childId=${S.cid}&type=${S.rp.type}&offset=${S.rp.off}`); RP_TEXT = R.text;
+  return `<div class="box"><div class="bar">${kidSel()}<button class="b ${S.rp.type === 'week' ? '' : 'g'}" data-a="rtype" data-v="week">周报</button><button class="b ${S.rp.type === 'month' ? '' : 'g'}" data-a="rtype" data-v="month">月报</button>
+    <button class="b g" data-a="roff" data-n="-1">←</button><b>${esc(R.range.label)}</b><button class="b g" data-a="roff" data-n="1" ${S.rp.off >= 0 ? 'disabled' : ''}>→</button><button class="b g" data-a="rcopy">复制文字摘要</button></div>
+    <div style="max-width:560px;margin-top:12px">${reportHtml(R)}</div>
+    <p class="hint">每周日晚 8 点会把全家的周报推送到手机(需要在「系统设置」填好通知地址,可关闭)。</p></div>`;
+}
+
+// ---- 操作日志 ----
+async function audit() {
+  const l = await api('/audit');
+  return `<div class="box"><h3>操作日志</h3><p class="hint" style="margin:0 0 10px">记录删除、驳回、导入恢复等操作;删错了可以点「撤销」找回。加扣分的撤销在「积分记录」里。</p>
+    <table>${l.map(x => `<tr><td>${fmtTime(x.ts)}</td><td>${x.from === 'admin' ? '💻 后台' : '📱 前台'}</td><td><b>${esc(x.act)}</b></td><td>${esc(x.text)}</td><td>${x.undo ? `<button class="b g" data-a="auundo" data-id="${x.id}">撤销</button>` : x.undone ? '<small>已撤销</small>' : ''}</td></tr>`).join('') || '<tr><td>暂无操作</td></tr>'}</table></div>`;
+}
+
 // ---- 设置 ----
 const set = async () => { const s = S.settings, bk = await api('/backups'); return `<div class="box"><h3>系统设置</h3>
   <div class="frow"><small>每日打卡得分</small><input id="s1" type="number" value="${s.checkinPoints}"></div>
@@ -159,7 +182,12 @@ const set = async () => { const s = S.settings, bk = await api('/backups'); retu
   <div class="frow"><small>专注任务(逗号分隔)</small><input id="s4" value="${esc((s.focusTasks || []).join(','))}"></div>
   <div class="frow"><small>学习科目(逗号分隔)</small><input id="s5" value="${esc((s.subjects || []).join(','))}"></div>
   <div class="frow"><small>学习类型(逗号分隔)</small><input id="s6" value="${esc((s.kinds || []).join(','))}"></div>
-  <div style="margin-top:14px"><button class="b" data-a="setsave">保存设置</button></div>
+  <div class="frow"><small>连续打卡奖励(天数:分数,逗号分隔)</small><input id="s7" value="${esc((s.streakRewards || []).map(x => x.days + ':' + x.points).join(','))}" placeholder="如 3:5,7:20,14:40,30:100"></div>
+  <div class="frow"><small>通知地址(ntfy,含主题)</small><input id="s8" value="${esc(s.ntfyUrl || '')}" placeholder="如 https://ntfy.8010252.xyz/notice,留空=不推送"></div>
+  <div class="frow"><small>ntfy 访问令牌(没设密码可不填)</small><input id="s9" type="password" value="" placeholder="${s.hasToken ? '已设置,留空不改' : '可不填'}"></div>
+  <div class="frow"><small>周日晚 8 点推送周报</small><label class="ck"><input id="s10" type="checkbox" ${s.weeklyPush ? 'checked' : ''}>开启</label></div>
+  <div style="margin-top:14px"><button class="b" data-a="setsave">保存设置</button> <button class="b g" data-a="ntest">保存并发送测试通知</button></div>
+  <p class="hint">有孩子申报、兑换、许愿时会推送到这个地址;连续打卡奖励在「恰好达到」该天数那天发一次。</p>
   <p class="hint">登录密码在 docker-compose.yml 的 PASSWORD 中修改。</p></div>
   <div class="box"><h3>数据备份</h3><div class="bar"><button class="b" data-a="bknow">立即备份</button><button class="b g" data-a="export">导出到电脑</button><button class="b g" data-a="import">导入备份文件</button></div>
   <p class="hint">已开启自动备份:数据有变动后约 1 分钟内更新当天的备份,每天一份、保留最近 30 天,存放在数据目录的 backups 文件夹(跟着 docker 数据卷走)。恢复前会自动再留一份当前数据。孩子的照片文件在 uploads 里,不在备份内,换服务器时请一并拷贝。</p>
@@ -203,7 +231,16 @@ document.addEventListener('click', async e => {
     }
     else if (a === 'undo') { if (confirm('撤销这条记录并回退积分?')) { await api('/logs/' + t.dataset.id, 'DELETE'); await load(); } }
     else if (a === 'stdel') { if (confirm('删除这条学习记录?')) { await api('/study/' + t.dataset.id, 'DELETE'); render(); } }
-    else if (a === 'setsave') { await api('/settings', 'PUT', { checkinPoints: $('#s1').value, focusPer10: $('#s3').value, focusTasks: $('#s4').value.split(/[,,、]/), subjects: $('#s5').value.split(/[,,、]/), kinds: $('#s6').value.split(/[,,、]/) }); toast('已保存'); await load(); }
+    else if (a === 'clok' || a === 'clno') { await api(`/claims/${t.dataset.id}/${a === 'clok' ? 'approve' : 'reject'}`, 'POST'); toast(a === 'clok' ? '已加分' : '已驳回'); await load(); }
+    else if (a === 'wsave') { await api('/wishes/' + row.dataset.id, 'PUT', { cost: val('cost') }); toast('已修改'); await load(); }
+    else if (a === 'wshop') { await api(`/wishes/${row.dataset.id}/toshop`, 'POST'); toast('已放进商城'); await load(); }
+    else if (a === 'wdel') { if (confirm('删除这个心愿?')) { await api('/wishes/' + row.dataset.id, 'DELETE'); await load(); } }
+    else if (a === 'rtype') { S.rp.type = t.dataset.v; S.rp.off = 0; render(); }
+    else if (a === 'roff') { S.rp.off = Math.min(0, S.rp.off + +t.dataset.n); render(); }
+    else if (a === 'rcopy') { try { await navigator.clipboard.writeText(RP_TEXT); toast('已复制'); } catch { prompt('复制下面的文字:', RP_TEXT); } }
+    else if (a === 'auundo') { if (confirm('撤销这条操作?')) { await api(`/audit/${t.dataset.id}/undo`, 'POST'); toast('已撤销'); await load(); } }
+    else if (a === 'setsave' || a === 'ntest') { await api('/settings', 'PUT', { checkinPoints: $('#s1').value, focusPer10: $('#s3').value, focusTasks: $('#s4').value.split(/[,,、]/), subjects: $('#s5').value.split(/[,,、]/), kinds: $('#s6').value.split(/[,,、]/), streakRewards: $('#s7').value, ntfyUrl: $('#s8').value, ntfyToken: $('#s9').value, weeklyPush: $('#s10').checked }); toast('已保存');
+      if (a === 'ntest') { await api('/notify/test', 'POST'); toast('测试通知已发出,看看手机收到没'); } await load(); }
   } catch (er) { toast(er.message); }
 });
 document.addEventListener('change', e => {

@@ -22,3 +22,15 @@ input, select { font: inherit; color: var(--ink); }
 .login-logo { font-size: 44px; } .login-card h2 { margin: 6px 0 16px; }
 .login-card input { width: 100%; padding: 13px 16px; border-radius: 16px; border: 2px solid var(--purple-l); outline: 0; margin-bottom: 12px; text-align: center; }
 .login-card button { width: 100%; padding: 13px; border-radius: 16px; background: linear-gradient(90deg, var(--pink), var(--purple)); color: #fff; font-weight: 700; }
+
+/* 周报/月报(前台+后台共用) */
+.rp .p, .rp b.p { color: #1e9c78; } .rp .n, .rp b.n { color: #e0455e; }
+.rhead { text-align: center; padding: 18px 12px 14px; border-radius: 24px; background: linear-gradient(135deg, #fff4cf, #ffe3f0 60%, #ece6ff); box-shadow: 0 4px 0 var(--purple-l); }
+.rhead small { display: block; color: var(--ink2); font-weight: 700; } .rhead b { display: block; font-size: 46px; line-height: 1.15; font-weight: 900; } .rhead span { font-size: 13px; color: var(--ink2); }
+.rgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0; }
+.rgrid div { text-align: center; padding: 10px 2px; border-radius: 16px; background: #fff; box-shadow: 0 3px 0 var(--purple-l); } .rgrid b { display: block; font-size: 18px; } .rgrid small { color: var(--ink2); font-size: 12px; }
+.rbox { padding: 14px; margin-bottom: 12px; border-radius: 20px; background: #fff; box-shadow: 0 3px 0 var(--purple-l); } .rbox h4 { margin: 0 0 8px; font-size: 15px; } .rbox h4 small { color: var(--ink2); font-weight: 500; }
+.rbars { display: flex; align-items: flex-end; gap: 3px; height: 96px; } .rb { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; }
+.rb i { display: block; width: 100%; max-width: 22px; border-radius: 5px 5px 2px 2px; background: #7be0bd; } .rb i.n { background: #ff9aa9; } .rb em { font-style: normal; font-size: 10px; color: var(--ink2); height: 14px; line-height: 14px; white-space: nowrap; }
+.rr { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed var(--purple-l); } .rr:last-child { border-bottom: 0; } .rr.none { color: var(--ink2); }
+.rr2 { display: flex; align-items: center; gap: 10px; padding: 5px 0; } .rr2 span { width: 64px; flex: none; } .rr2 .t { flex: 1; height: 10px; border-radius: 6px; background: #f3edff; overflow: hidden; } .rr2 .t i { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--pink), var(--purple)); } .rr2 .t i.n { background: #ff9aa9; } .rr2 b { width: 52px; text-align: right; flex: none; }

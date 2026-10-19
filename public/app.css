@@ -129,3 +129,15 @@
 .sw { flex: none; width: 52px; height: 30px; border-radius: 16px; background: #ddd3f5; position: relative; transition: background .2s; }
 .sw::after { content: ""; position: absolute; left: 3px; top: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,.18); transition: left .2s; }
 .sw.on { background: linear-gradient(90deg, var(--pink), var(--purple)); } .sw.on::after { left: 25px; }
+
+/* 申报 / 孩子模式 / 心愿 */
+.kidtip { margin: 14px 0 0; padding: 10px 14px; border-radius: 16px; background: #fff4cf; color: #b07a00; font-weight: 700; font-size: 14px; text-align: center; }
+.claimbar { display: flex; width: 100%; align-items: center; justify-content: space-between; margin-top: 14px; padding: 12px 16px; border-radius: 18px; background: linear-gradient(90deg, #ffe3f0, #ece6ff); font-weight: 800; color: var(--purple-d); box-shadow: 0 4px 0 var(--purple-l); } .claimbar b { color: #e9559a; font-size: 18px; } .claimbar i { font-style: normal; font-size: 20px; }
+.card .dn.pend { background: #fff4cf; box-shadow: 0 0 0 2px #ffd45e; }
+.clist { max-height: 52vh; overflow: auto; text-align: left; } .crow { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; border-bottom: 1px dashed var(--purple-l); } .crow:last-child { border-bottom: 0; } .crow small { display: block; color: var(--ink2); }
+.cb { display: flex; gap: 6px; flex: none; } .cb button { padding: 8px 12px; border-radius: 14px; font-weight: 800; background: var(--purple-l); } .cb button.ok { background: linear-gradient(90deg, var(--pink), var(--purple)); color: #fff; }
+.big .card .streak.nx { background: #ece6ff; color: var(--purple-d); }
+.wish { margin-bottom: 10px; padding: 12px 14px; border-radius: 20px; background: #fff; box-shadow: 0 4px 0 var(--purple-l); } .wish .wt { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; } .wish .wt span { font-weight: 800; color: #c58a00; }
+.wish .wbar { display: block; width: 100%; height: 8px; border-radius: 4px; background: #f3edff; overflow: hidden; margin-bottom: 8px; } .wish .wbar i { display: block; height: 100%; background: linear-gradient(90deg, var(--yellow), var(--pink)); }
+.wish .wf { display: flex; justify-content: space-between; align-items: center; gap: 8px; } .wish small { color: var(--ink2); } .wish .wf button { margin-left: 6px; padding: 5px 12px; border-radius: 12px; background: var(--purple-l); font-weight: 700; font-size: 13px; }
+.rctl { margin-top: 14px; } .rctl .chips { justify-content: center; } .rctl .monthbar button:disabled { opacity: .3; }

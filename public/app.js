@@ -1,5 +1,6 @@
 // 星星屋 · 手机前台
 const S = { children: [], rules: [], shop: [], settings: {}, checkins: [], today: '', cid: +store.get('xt_cid') || 0, tab: store.get('xt_tab') || 'score' };
+const kidMode = () => store.get('xt_kid') === '1'; // 孩子模式:好表现只能「申报」,等家长确认
 const F = { task: '', minutes: Math.min(180, Math.max(1, +store.get('xt_fmin') || 30)), endAt: 0, running: false, sys: false }; // 专注状态
 // 提示音(WebAudio 合成,无需音频文件;需在点击「专注」时解锁)
 const saveF = () => { try { store.set('xt_focus', JSON.stringify({ task: F.task, minutes: F.minutes, endAt: F.endAt, running: F.running, sys: F.sys })); } catch {} };
@@ -100,6 +101,10 @@ function goBack() { // APK 返回键:返回 true 表示已处理
   return false;
 }
 if (CapApp) CapApp.addListener('backButton', () => { if (!goBack()) CapApp.exitApp(); });
+function showClaims() {
+  modal(`<h3>🙋 待确认申报</h3><div class="clist">${S.claims.map(c => { const k = S.children.find(x => x.id === c.childId);
+    return `<div class="crow"><div><b>${esc(k ? k.name : '')}</b> · ${c.icon ? esc(c.icon) + ' ' : ''}${esc(c.name)}<small>+${c.points} 分 · ${fmtTime(c.ts)}</small></div><div class="cb"><button class="no" data-a="clno" data-id="${c.id}">驳回</button><button class="ok" data-a="clok" data-id="${c.id}">通过</button></div></div>`; }).join('')}</div>`);
+}
 const ask = (title, msg, fn) => modal(`<h3>${title}</h3><p>${msg}</p>`, fn);
 
 // ---------- 页面 ----------
@@ -137,7 +142,8 @@ const grpOpen = () => { try { return JSON.parse(store.get('xt_grp') || '{}'); } 
 function score() {
   const mine = (S.rwk || []).filter(w => w.childId === S.cid);
   const card = r => { const n = mine.filter(w => w.name === r.name).length, done = mine.some(w => w.name === r.name && w.d === S.today);
-    return `<button class="card ${r.type}" data-a="rule" data-id="${r.id}">${done ? '<i class="dn">✓</i>' : ''}<span class="top"><span class="ico">${r.icon ? esc(r.icon) : (r.type === 'bad' ? '❗' : '⭐')}</span><span class="name">${esc(r.name)}</span></span><span class="foot"><span class="wk ${n ? '' : 'none'}">${n ? '本周 ×' + n : '本周还没有'}</span><span class="pt">${r.type === 'bad' ? '-' : '+'}${r.points}</span></span></button>`; };
+    const pend = (S.claims || []).some(c => c.childId === S.cid && c.ruleId === r.id);
+    return `<button class="card ${r.type}" data-a="rule" data-id="${r.id}">${pend ? '<i class="dn pend">⏳</i>' : done ? '<i class="dn">✓</i>' : ''}<span class="top"><span class="ico">${r.icon ? esc(r.icon) : (r.type === 'bad' ? '❗' : '⭐')}</span><span class="name">${esc(r.name)}</span></span><span class="foot"><span class="wk ${n ? '' : 'none'}">${n ? '本周 ×' + n : '本周还没有'}</span><span class="pt">${r.type === 'bad' ? '-' : '+'}${r.points}</span></span></button>`; };
   // 已停用的不显示;限定孩子的规则只对对应孩子显示
   const vis = S.rules.filter(r => !r.off && !(r.kids || []).length || (!r.off && r.kids.includes(S.cid)));
   const op = grpOpen();
@@ -148,12 +154,14 @@ function score() {
       return `<button class="grph" data-a="grp" data-k="${esc(key)}"><span>${open ? '▾' : '▸'} ${esc(k || '其他')}</span><small>${rs.length}</small></button>${open ? `<div class="grid">${rs.map(card).join('')}</div>` : ''}`; }).join('');
   };
   const g = vis.filter(r => r.type !== 'bad'), b = vis.filter(r => r.type === 'bad');
+  const kid = kidMode(), np = (S.claims || []).length;
   return hero('score') +
+    (kid ? '<div class="kidtip">🙋 点一点你做到的事,爸爸妈妈确认后就能得星星啦 ✨</div>' : np ? `<button class="claimbar" data-a="claims">🙋 有 <b>${np}</b> 条申报等你确认 <i>›</i></button>` : '') +
     `<div class="sec"><span class="tag good">⭐ 表现不错(${g.length})</span></div>${sect(g, 'good')}` +
-    `<div class="sec"><span class="tag bad">❗ 有待提高(${b.length})</span></div>${sect(b, 'bad')}` +
+    (kid ? '' : `<div class="sec"><span class="tag bad">❗ 有待提高(${b.length})</span></div>${sect(b, 'bad')}` +
     `<div class="sec"><span class="tag flex">✏️ 灵活记录</span></div><div class="grid">
       <button class="card good" data-a="manual" data-s="1"><span class="name">手动加分</span><span class="pt">+</span></button>
-      <button class="card bad" data-a="manual" data-s="-1"><span class="name">手动扣分</span><span class="pt">-</span></button></div>`;
+      <button class="card bad" data-a="manual" data-s="-1"><span class="name">手动扣分</span><span class="pt">-</span></button></div>`);
 }
 
 function shop() {
@@ -165,11 +173,15 @@ function shop() {
     const pts = cur().points || 0, can = !out && !lim && pts >= i.cost, pct = Math.min(100, Math.max(0, pts / i.cost * 100));
     return `<button class="card shop ${out || lim ? 'off' : ''} ${can ? 'can' : ''}" data-a="redeem" data-id="${i.id}"><span class="top"><span class="ico">${i.icon ? esc(i.icon) : '🎁'}</span><span class="name">${esc(i.name)}${note ? `<small class="nt">${note}</small>` : ''}</span></span><span class="bar2"><i style="width:${pct}%"></i></span><span class="foot"><span class="wk ${can ? 'ok' : ''}">${out || lim ? '' : can ? '可兑换 ✨' : '🔒 还差 ' + (i.cost - pts) + ' 分'}</span><span class="pt">⭐ ${i.cost}</span></span></button>`;
   };
-  const mk = S.checkins.filter(c => c.childId === S.cid), ckToday = mk.some(c => c.d === S.today), ckMonth = mk.filter(c => c.d.startsWith(S.today.slice(0, 7))).length, st = streak();
+  const wishRow = w => { const pts = cur().points || 0, pct = Math.min(100, Math.max(0, pts / w.cost * 100)), ok = pts >= w.cost;
+    return `<div class="wish"><div class="wt"><b>${esc(w.icon || '🌠')} ${esc(w.name)}</b><span>⭐ ${w.cost}</span></div><span class="bar2 wbar"><i style="width:${pct}%"></i></span><div class="wf"><small>${ok ? '星星攒够啦,告诉爸爸妈妈吧 ✨' : '还差 ' + (w.cost - pts) + ' 分'}</small><span>${kidMode() ? '' : `<button data-a="wshop" data-id="${w.id}">放进商城</button>`}<button data-a="wdel" data-id="${w.id}">删除</button></span></div></div>`; };
+  const myW = (S.wishes || []).filter(w => w.childId === S.cid);
+  const mk = S.checkins.filter(c => c.childId === S.cid), ckToday = mk.some(c => c.d === S.today), ckMonth = mk.filter(c => c.d.startsWith(S.today.slice(0, 7))).length, st = streak(), nx = (s.streakRewards || []).find(x => x.days > st);
   return hero('shop') +
     `<div class="sec">🎀 快乐补给站</div><div class="big">
-      <button class="card shop" data-a="checkin"><span class="em">${ckToday ? '🎉' : '✅'}</span><b>${ckToday ? '今日已打卡' : '每日打卡'}</b><small>+${s.checkinPoints} 分</small><span class="streak">🔥 连续 ${st} 天 · 本月 ${ckMonth} 天</span></button></div>` +
-    `<div class="sec">🛍 积分兑换</div><div class="grid">${S.shop.map(item).join('') || '<div class="empty">家长后台还没添加商品</div>'}</div>`;
+      <button class="card shop" data-a="checkin"><span class="em">${ckToday ? '🎉' : '✅'}</span><b>${ckToday ? '今日已打卡' : '每日打卡'}</b><small>+${s.checkinPoints} 分</small><span class="streak">🔥 连续 ${st} 天 · 本月 ${ckMonth} 天</span>${nx ? `<span class="streak nx">再打卡 ${nx.days - st} 天,奖励 +${nx.points} 分</span>` : ''}</button></div>` +
+    `<div class="sec">🛍 积分兑换</div><div class="grid">${S.shop.map(item).join('') || '<div class="empty">家长后台还没添加商品</div>'}</div>` +
+    `<div class="sec">🌠 我的心愿</div>${myW.map(wishRow).join('') || '<div class="empty" style="padding:14px 0">还没有心愿,想要什么就许一个吧</div>'}<button class="link" data-a="wadd">＋ 许个愿</button>`;
 }
 
 const fmtT = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
@@ -221,14 +233,21 @@ async function study() {
 }
 
 // ---------- 我的(成长档案) ----------
-let meV = '', calM = '';
-const MENU = [['calendar', '📅', '时光日历', '看看每天的成长足迹', '#8fc2ff'], ['logs', '⭐', '积分记录', '每一次加扣分', '#ff9aa9'], ['redeem', '🛍', '兑换记录', '好物兑换历史', '#7be0bd'], ['focus', '⏱', '专注记录', '回顾认真投入的时光', '#c5aaff']];
+let meV = '', calM = ''; const rp = { type: 'week', off: 0 };
+const MENU = [['calendar', '📅', '时光日历', '看看每天的成长足迹', '#8fc2ff'], ['logs', '⭐', '积分记录', '每一次加扣分', '#ff9aa9'], ['redeem', '🛍', '兑换记录', '好物兑换历史', '#7be0bd'], ['focus', '⏱', '专注记录', '回顾认真投入的时光', '#c5aaff'], ['report', '📈', '成长周报', '本周 / 本月做得怎么样', '#ffcf4d']];
 const logRow = l => `<div class="row"><div>${esc(l.reason)}<small>${fmtTime(l.ts)}</small></div><b class="${l.delta >= 0 ? 'p' : 'n'}">${l.delta ? sign(l.delta) : '🎁'}</b></div>`;
 async function me() {
   const ch = cur();
-  if (!meV) return hero('me') + `<div class="sec">📁 成长档案</div><div class="menu">${MENU.map(([k, ic, t, s, c]) => `<button style="--c:${c}" data-a="mv" data-v="${k}"><span class="mi">${ic}</span><span><b>${t}</b><small>${s}</small></span><i>›</i></button>`).join('')}</div><button class="link" data-a="logout">退出登录</button>`;
+  if (!meV) return hero('me') + `<div class="sec">📁 成长档案</div><div class="menu">${MENU.map(([k, ic, t, s, c]) => `<button style="--c:${c}" data-a="mv" data-v="${k}"><span class="mi">${ic}</span><span><b>${t}</b><small>${s}</small></span><i>›</i></button>`).join('')}</div>
+    <div class="fset"><div class="fr"><div><b>🙋 孩子模式</b><small>${kidMode() ? '已开启:孩子只能申报,家长确认后才加分' : '开启后孩子只能「申报」好表现,不能自己加扣分'}</small></div><button class="sw ${kidMode() ? 'on' : ''}" data-a="kidmode" aria-label="孩子模式"></button></div></div>
+    ${kidMode() ? '' : '<button class="link" data-a="logout">退出登录</button>'}`;
   const it = MENU.find(m => m[0] === meV), head = `<button class="back" data-a="mv" data-v="">‹ 返回</button><div class="sec">${it[1]} ${it[2]}</div>`;
   if (meV === 'calendar') return head + await calendar(ch);
+  if (meV === 'report') {
+    const R = await api(`/report?childId=${ch.id}&type=${rp.type}&offset=${rp.off}`);
+    return head + `<div class="rctl"><div class="chips"><button class="chip ${rp.type === 'week' ? 'on' : ''}" data-a="rtype" data-v="week">周报</button><button class="chip ${rp.type === 'month' ? 'on' : ''}" data-a="rtype" data-v="month">月报</button></div>
+      <div class="monthbar"><button data-a="roff" data-n="-1">‹</button><b>${esc(R.range.label)}</b><button data-a="roff" data-n="1" ${rp.off >= 0 ? 'disabled' : ''}>›</button></div></div>` + reportHtml(R, { sibs: !kidMode() });
+  }
   if (meV === 'focus') { const f = await api(`/focus?childId=${ch.id}`); return head + `<div class="list">${f.map(x => `<div class="row"><div>${esc(x.task)}<small>${x.d}</small></div><b class="p">${x.minutes} 分钟</b></div>`).join('') || '<div class="empty">暂无记录</div>'}</div>`; }
   const logs = await api(`/logs?childId=${ch.id}&type=${meV === 'logs' ? '' : meV}&limit=80`);
   return head + `<div class="list">${logs.map(logRow).join('') || '<div class="empty">暂无记录</div>'}</div>`;
@@ -260,11 +279,23 @@ document.addEventListener('click', async e => {
   if (t.dataset.t) { const ch = S.tab !== t.dataset.t; S.tab = t.dataset.t; store.set('xt_tab', S.tab); if (ch) pushH(); return render(); }
   const a = t.dataset.a, id = +t.dataset.id;
   try {
-    if (a === 'grp') { const o = grpOpen(); o[t.dataset.k] = o[t.dataset.k] === false; store.set('xt_grp', JSON.stringify(o)); render(); }
+    if (a === 'claims') showClaims();
+    else if (a === 'clok' || a === 'clno') { await api(`/claims/${id}/${a === 'clok' ? 'approve' : 'reject'}`, 'POST'); toast(a === 'clok' ? '已加分 ⭐' : '已驳回'); await refresh(); S.claims.length ? showClaims() : close(); }
+    else if (a === 'kidmode') {
+      if (!kidMode()) ask('开启孩子模式?', '这台手机上,孩子只能申报好表现,不能自己加扣分。关闭时需要输入家庭密码。', async () => { store.set('xt_kid', '1'); render(); });
+      else modal(`<h3>回到家长模式</h3><input id="kp" type="password" placeholder="输入家庭密码" autocomplete="current-password">`, async () => { await api('/login', 'POST', { password: $('#kp').value }); store.set('xt_kid', '0'); toast('已回到家长模式'); render(); });
+    }
+    else if (a === 'rtype') { rp.type = t.dataset.v; rp.off = 0; render(); }
+    else if (a === 'roff') { rp.off = Math.min(0, rp.off + +t.dataset.n); render(); }
+    else if (a === 'wadd') modal(`<h3>🌠 许个愿</h3><input id="wn" placeholder="想要什么?(如:乐高)" maxlength="30"><input id="wc" type="number" inputmode="numeric" placeholder="大概想攒多少颗星星">`, async () => { await api('/wishes', 'POST', { childId: S.cid, name: $('#wn').value, cost: $('#wc').value }); toast('愿望已记下 🌠'); refresh(); });
+    else if (a === 'wdel') ask('删除心愿?', '删掉就看不到啦', async () => { await api('/wishes/' + id, 'DELETE'); refresh(); });
+    else if (a === 'wshop') { await api(`/wishes/${id}/toshop`, 'POST'); toast('已放进商城(库存 1)'); refresh(); }
+    else if (a === 'grp') { const o = grpOpen(); o[t.dataset.k] = o[t.dataset.k] === false; store.set('xt_grp', JSON.stringify(o)); render(); }
+    else if (a === 'rule' && kidMode()) { const r = S.rules.find(x => x.id === id); if (r.type === 'bad') return; ask('我做到了!', `「${esc(r.name)}」+${r.points} 分,告诉爸爸妈妈确认,好吗?`, async () => { await api('/claims', 'POST', { childId: S.cid, ruleId: id }); toast('已告诉爸爸妈妈 ✨'); refresh(); }); }
     else if (a === 'rule') { const r = S.rules.find(x => x.id === id), rc = t.getBoundingClientRect(); ask(esc(r.name), `${r.type === 'bad' ? '扣' : '加'} ${r.points} 分,确认吗?`, async () => { await api('/score', 'POST', { childId: S.cid, ruleId: id }); toast(`${r.type === 'bad' ? '-' : '+'}${r.points}`); fly(rc, `${r.type === 'bad' ? '-' : '+'}${r.points} ${r.type === 'bad' ? '💔' : '⭐'}`, r.type === 'bad'); refresh(); }); }
     else if (a === 'manual') { const s = +t.dataset.s; modal(`<h3>手动${s > 0 ? '加' : '扣'}分</h3><input id="mp" type="number" inputmode="numeric" placeholder="分数"><input id="mr" placeholder="原因(可不填)">`, async () => { const n = Math.abs(+$('#mp').value | 0); if (!n) throw new Error('请输入分数'); await api('/score', 'POST', { childId: S.cid, delta: s * n, reason: $('#mr').value }); refresh(); }); }
     else if (a === 'redeem') { const i = S.shop.find(x => x.id === id); ask('兑换', `用 ${i.cost} 分兑换「${esc(i.name)}」?`, async () => { await api('/redeem', 'POST', { childId: S.cid, itemId: id }); toast('兑换成功 🎉'); refresh(); }); }
-    else if (a === 'checkin') { const r = await api('/checkin', 'POST', { childId: S.cid }); toast(`打卡成功 +${r.got}`); refresh(); }
+    else if (a === 'checkin') { const r = await api('/checkin', 'POST', { childId: S.cid }); toast(`打卡成功 +${r.got}${r.bonus ? ` · 连续 ${r.days} 天奖励 +${r.bonus} 🎉` : ''}`); refresh(); }
     else if (a === 'fsnd') { store.set('xt_fsnd', soundOn() ? '0' : '1'); if (soundOn()) { unlockAudio(); playAlarm(); } render(); }
     else if (a === 'fstart') { unlockAudio(); F.endAt = Date.now() + F.minutes * 60000; F.running = true; F.sys = false; saveF(); schedFocusNotice(); render(); }
     else if (a === 'fstop') ask('放弃专注?', '现在放弃就没有积分啦', async () => { cancelFocusNotice(true); F.running = false; F.sys = false; saveF(); render(); });

@@ -36,7 +36,11 @@ function defaults() {
     checkins: [], // {childId,d}
     focus: [], // {id,childId,task,minutes,ts,d}
     study: [], // {id,childId,subject,kind,score,note,ts,d}
-    settings: { checkinPoints: 5, focusPer10: 2, focusTasks: ['吃饭', '阅读', '作业'], subjects: ['语文', '数学', '英语', '科学', '音乐', '美术', '体育'], kinds: ['作业', '单元卷', '月考卷', '期中卷', '期末卷'] },
+    claims: [], // 孩子申报 {id,childId,ruleId,name,points,ts,d,status:pending|ok|no}
+    wishes: [], // 心愿 {id,childId,name,cost,icon,ts,status:open|done}
+    audit: [], // 操作日志 {id,ts,from,act,text,undo?}
+    meta: {},
+    settings: { checkinPoints: 5, focusPer10: 2, focusTasks: ['吃饭', '阅读', '作业'], subjects: ['语文', '数学', '英语', '科学', '音乐', '美术', '体育'], kinds: ['作业', '单元卷', '月考卷', '期中卷', '期末卷'], ntfyUrl: '', ntfyToken: '', weeklyPush: true, streakRewards: [{ days: 3, points: 5 }, { days: 7, points: 20 }, { days: 14, points: 40 }, { days: 30, points: 100 }] },
   };
 }
 let db;
@@ -87,10 +91,31 @@ const nid = () => ++db.seq;
 const monday = () => dstr(Date.now() - ((new Date().getDay() + 6) % 7) * 864e5); // 本周一(周一为一周开始)
 const truthy = v => v === true || v === 'true' || v === 1 || v === '1';
 const child = id => db.children.find(c => c.id === +id);
+const sg = n => (n > 0 ? '+' : '') + n;
+// 操作日志:undo 里放撤销所需的数据
+function audit(act, text, undo) {
+  db.audit.push({ id: nid(), ts: Date.now(), from: FROM, act, text, undo: undo || null });
+  if (db.audit.length > 300) db.audit.splice(0, db.audit.length - 300);
+}
+// ntfy 推送(设置里填 https://ntfy.xxx/主题;也可用环境变量 NTFY_URL)
+async function notify(title, message, tags) {
+  const url = String(db.settings.ntfyUrl || process.env.NTFY_URL || '').trim();
+  if (!url) return { ok: false, err: '还没填通知地址' };
+  try {
+    const u = new URL(url), topic = u.pathname.replace(/^\/+|\/+$/g, '');
+    if (!topic) return { ok: false, err: '地址里要带主题名,如 https://ntfy.xxx.com/notice' };
+    const h = { 'Content-Type': 'application/json' };
+    if (db.settings.ntfyToken) h.Authorization = 'Bearer ' + db.settings.ntfyToken;
+    const r = await fetch(u.origin, { method: 'POST', headers: h, body: JSON.stringify({ topic, title, message, tags: tags || [] }), signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return { ok: false, err: 'ntfy 返回 ' + r.status };
+    return { ok: true };
+  } catch (e) { console.error('ntfy 失败', e.message); return { ok: false, err: e.message }; }
+}
 
+let FROM = ''; // 本次请求来自:admin=家长后台,app=手机前台
 function addLog(c, delta, reason, type) {
   c.points = (c.points || 0) + delta;
-  const l = { id: nid(), childId: c.id, delta, reason, type, ts: Date.now(), d: dstr() };
+  const l = { id: nid(), childId: c.id, delta, reason, type, ts: Date.now(), d: dstr(), by: FROM };
   db.logs.push(l);
   return l;
 }
@@ -106,7 +131,7 @@ app.post('/api/login', (req, res) => {
   res.status(401).json({ error: '密码不对' });
 });
 app.use('/api', (req, res, next) => {
-  if (req.headers['x-token'] === TOKEN) return next();
+  if (req.headers['x-token'] === TOKEN) { FROM = req.headers['x-from'] === 'admin' ? 'admin' : 'app'; return next(); }
   res.status(401).json({ error: '未登录' });
 });
 const wrap = fn => (req, res) => { try { res.json(fn(req, res) ?? { ok: true }); save(); } catch (e) { res.status(400).json({ error: e.message }); } };
@@ -114,7 +139,9 @@ const need = (cond, msg) => { if (!cond) throw new Error(msg); };
 
 app.get('/api/state', wrap(() => ({
   children: db.children, rules: db.rules, shop: db.shop,
-  settings: db.settings, today: dstr(),
+  settings: { ...db.settings, ntfyToken: undefined, hasToken: !!db.settings.ntfyToken }, today: dstr(),
+  claims: db.claims.filter(c => c.status === 'pending'), // 待家长确认的申报
+  wishes: db.wishes.filter(w => w.status === 'open'),
   checkins: db.checkins.filter(c => c.d.slice(0, 7) >= dstr(Date.now() - 62 * 864e5).slice(0, 7)),
   wk: db.redeems.filter(r => r.d >= monday()).map(r => ({ childId: r.childId, itemId: r.itemId })), // 本周兑换次数(限兑用)
   rwk: db.logs.filter(l => l.type === 'rule' && l.d >= monday()).map(l => ({ childId: l.childId, name: l.reason, d: l.d })), // 本周规则次数(卡片徽标用)
@@ -133,10 +160,13 @@ app.put('/api/children/:id', wrap(req => {
   if (req.body.avatar != null) c.avatar = req.body.avatar;
   return c;
 }));
+const CHILD_RECS = ['logs', 'redeems', 'checkins', 'focus', 'study', 'claims', 'wishes'];
 app.delete('/api/children/:id', wrap(req => {
-  const id = +req.params.id;
-  db.children = db.children.filter(c => c.id !== id);
-  for (const k of ['logs', 'redeems', 'checkins', 'focus', 'study']) db[k] = db[k].filter(x => x.childId !== id);
+  const id = +req.params.id, idx = db.children.findIndex(c => c.id === id), c = db.children[idx];
+  need(c, '孩子不存在');
+  const recs = {}; for (const k of CHILD_RECS) { recs[k] = db[k].filter(x => x.childId === id); db[k] = db[k].filter(x => x.childId !== id); }
+  db.children.splice(idx, 1);
+  audit('删除孩子', `${c.name}(${c.points || 0} 分,含全部记录)`, { kind: 'child', child: c, idx, recs });
 }));
 
 // 规则 / 商城 / 奖品 通用增删改
@@ -166,7 +196,11 @@ for (const [k, norm] of Object.entries(colls)) {
     const o = norm({ ...db[k][i], ...req.body }); need(o.name, '请填写名称');
     db[k][i] = { ...o, id: db[k][i].id }; return db[k][i];
   }));
-  app.delete(`/api/${k}/:id`, wrap(req => { db[k] = db[k].filter(x => x.id !== +req.params.id); }));
+  app.delete(`/api/${k}/:id`, wrap(req => {
+    const idx = db[k].findIndex(x => x.id === +req.params.id); if (idx < 0) return;
+    const [o] = db[k].splice(idx, 1);
+    audit(k === 'rules' ? '删除规则' : '删除商品', o.name, { kind: k, obj: o, idx });
+  }));
 }
 
 // 加扣分(childIds 可批量)
@@ -194,6 +228,7 @@ app.post('/api/redeem', wrap(req => {
   const l = addLog(c, -it.cost, '兑换:' + it.name, 'redeem'); l.ref = rd.id;
   db.redeems.push(rd);
   if (it.stock != null) it.stock--;
+  notify('🛍 星星屋:有兑换申请', `${c.name} 兑换了「${it.name}」(-${it.cost} 分,剩 ${c.points} 分),记得兑现哦`, ['gift']);
   return { points: c.points, name: it.name };
 }));
 app.put('/api/redeems/:id', wrap(req => { // 标记已兑现(奖励已发给孩子)
@@ -201,14 +236,23 @@ app.put('/api/redeems/:id', wrap(req => { // 标记已兑现(奖励已发给孩�
   r.done = req.body.done !== false; return r;
 }));
 
-// 打卡
+// 打卡(连续天数奖励:恰好达到设定天数时发一次)
+function streakOf(cid, d) {
+  const set = new Set(db.checkins.filter(x => x.childId === cid).map(x => x.d));
+  let n = 0, t = new Date(d + 'T12:00:00').getTime();
+  while (set.has(dstr(t))) { n++; t -= 864e5; }
+  return n;
+}
 app.post('/api/checkin', wrap(req => {
   const c = child(req.body.childId); need(c, '孩子不存在');
   const d = dstr();
   need(!db.checkins.some(x => x.childId === c.id && x.d === d), '今天已经打过卡啦');
   db.checkins.push({ childId: c.id, d });
   addLog(c, db.settings.checkinPoints, '每日打卡', 'checkin');
-  return { points: c.points, got: db.settings.checkinPoints };
+  const days = streakOf(c.id, d), hit = (db.settings.streakRewards || []).find(x => x.days === days);
+  let bonus = 0;
+  if (hit) { bonus = hit.points; addLog(c, bonus, `连续打卡 ${days} 天奖励`, 'streak'); }
+  return { points: c.points, got: db.settings.checkinPoints, bonus, days };
 }));
 
 // 专注
@@ -243,8 +287,14 @@ app.delete('/api/logs/:id', wrap(req => { // 撤销一条记录并回退积分
     const ri = db.redeems.findIndex(x => x.id === l.ref);
     if (ri >= 0) { const it = db.shop.find(x => x.id === db.redeems[ri].itemId); if (it && it.stock != null) it.stock++; db.redeems.splice(ri, 1); }
   }
-  if (l.type === 'checkin') db.checkins = db.checkins.filter(k => !(k.childId === l.childId && k.d === l.d)); // 撤销打卡:同时清掉打卡次数
-  db.logs.splice(i, 1);
+  if (l.type === 'checkin') { // 撤销打卡:同时清掉打卡次数和当天发的连续奖励
+    db.checkins = db.checkins.filter(k => !(k.childId === l.childId && k.d === l.d));
+    const bs = db.logs.filter(x => x.type === 'streak' && x.childId === l.childId && x.d === l.d);
+    if (c) for (const b of bs) c.points -= b.delta;
+    db.logs = db.logs.filter(x => !bs.includes(x));
+  }
+  db.logs = db.logs.filter(x => x !== l);
+  return;
 }));
 app.get('/api/focus', wrap(req => db.focus.filter(x => !req.query.childId || x.childId === +req.query.childId).slice(-100).reverse()));
 
@@ -304,10 +354,11 @@ function applyDb(o) {
   need(o && Array.isArray(o.children) && Array.isArray(o.rules) && Array.isArray(o.logs), '备份文件格式不对');
   writeBackup(`db-before-restore-${Date.now()}.json`); // 覆盖前先留一份当前数据
   const n = Object.assign(defaults(), o); n.settings = Object.assign(defaults().settings, o.settings);
-  const mx = Math.max(100, ...['children', 'rules', 'shop', 'logs', 'redeems', 'focus', 'study'].flatMap(k => (n[k] || []).map(x => +x.id || 0)));
+  const mx = Math.max(100, ...['children', 'rules', 'shop', 'logs', 'redeems', 'focus', 'study', 'claims', 'wishes', 'audit'].flatMap(k => (n[k] || []).map(x => +x.id || 0)));
   n.seq = Math.max(+n.seq || 0, mx);
   for (const r of n.redeems || []) if (r.done === undefined) r.done = true;
   db = n;
+  audit('导入/恢复数据', '整库已被替换(替换前自动留了一份副本)');
 }
 app.post('/api/import', wrap(req => { applyDb(req.body && req.body.db); }));
 
@@ -317,6 +368,132 @@ app.get('/api/backups', wrap(() => fs.readdirSync(BAK).filter(x => /^db-[\w-]+\.
 app.post('/api/backups', wrap(() => { const n = `db-manual-${Date.now()}.json`; writeBackup(n); return { name: n }; }));
 app.get('/api/backups/:name', wrap(req => JSON.parse(fs.readFileSync(path.join(BAK, bakName(req.params.name)), 'utf8'))));
 app.post('/api/backups/:name/restore', wrap(req => { applyDb(JSON.parse(fs.readFileSync(path.join(BAK, bakName(req.params.name)), 'utf8'))); }));
+
+// ---------- 孩子申报(孩子点「我做到了」,家长确认后才加分) ----------
+app.post('/api/claims', wrap(req => {
+  const c = child(req.body.childId); need(c, '孩子不存在');
+  const r = db.rules.find(x => x.id === +req.body.ruleId); need(r && r.type === 'good' && !r.off, '这条规则不能申报');
+  need(!db.claims.some(x => x.status === 'pending' && x.childId === c.id && x.ruleId === r.id), '已经申报过啦,等爸爸妈妈确认~');
+  const cl = { id: nid(), childId: c.id, ruleId: r.id, name: r.name, points: r.points, icon: r.icon || '', ts: Date.now(), d: dstr(), status: 'pending' };
+  db.claims.push(cl);
+  const done = db.claims.filter(x => x.status !== 'pending'); // 已处理的只留最近 200 条
+  if (done.length > 200) { const del = new Set(done.slice(0, done.length - 200)); db.claims = db.claims.filter(x => !del.has(x)); }
+  notify('🙋 星星屋:有新申报', `${c.name} 说做到了「${r.name}」(+${r.points} 分),等你确认`, ['raising_hand']);
+  return cl;
+}));
+app.post('/api/claims/:id/approve', wrap(req => {
+  const cl = db.claims.find(x => x.id === +req.params.id); need(cl, '申报不存在'); need(cl.status === 'pending', '这条已经处理过了');
+  const c = child(cl.childId); need(c, '孩子不存在');
+  const l = addLog(c, cl.points, cl.name, 'rule'); l.claim = cl.id;
+  cl.status = 'ok'; cl.logId = l.id; cl.hts = Date.now();
+  return { points: c.points };
+}));
+app.post('/api/claims/:id/reject', wrap(req => {
+  const cl = db.claims.find(x => x.id === +req.params.id); need(cl, '申报不存在'); need(cl.status === 'pending', '这条已经处理过了');
+  cl.status = 'no'; cl.hts = Date.now();
+  audit('驳回申报', `${child(cl.childId)?.name || ''} · ${cl.name}`, { kind: 'claim', id: cl.id });
+}));
+
+// ---------- 心愿清单 ----------
+app.post('/api/wishes', wrap(req => {
+  const c = child(req.body.childId); need(c, '孩子不存在');
+  const name = String(req.body.name || '').trim().slice(0, 30); need(name, '写一下你的心愿吧');
+  const cost = Math.min(99999, Math.max(1, Math.trunc(+req.body.cost) || 0)); need(cost >= 1, '想要多少颗星星?');
+  const w = { id: nid(), childId: c.id, name, cost, icon: String(req.body.icon || '').trim().slice(0, 4), ts: Date.now(), status: 'open' };
+  db.wishes.push(w);
+  notify('🌠 星星屋:新心愿', `${c.name} 许了个愿:「${name}」(想要 ${cost} 颗星)`, ['sparkles']);
+  return w;
+}));
+app.put('/api/wishes/:id', wrap(req => {
+  const w = db.wishes.find(x => x.id === +req.params.id); need(w, '心愿不存在');
+  if (req.body.name != null) w.name = String(req.body.name).trim().slice(0, 30) || w.name;
+  if (req.body.cost != null) w.cost = Math.min(99999, Math.max(1, Math.trunc(+req.body.cost) || w.cost));
+  return w;
+}));
+app.delete('/api/wishes/:id', wrap(req => { db.wishes = db.wishes.filter(x => x.id !== +req.params.id); }));
+app.post('/api/wishes/:id/toshop', wrap(req => { // 家长同意:变成商城里的一件商品(库存 1)
+  const w = db.wishes.find(x => x.id === +req.params.id); need(w && w.status === 'open', '心愿不存在');
+  const it = { id: nid(), name: w.name, cost: w.cost, icon: w.icon || '🌠', stock: 1, weekly: 0 };
+  db.shop.push(it); w.status = 'done';
+  return it;
+}));
+
+// ---------- 操作日志 / 撤销 ----------
+app.get('/api/audit', wrap(() => db.audit.slice(-150).reverse().map(a => ({ id: a.id, ts: a.ts, from: a.from, act: a.act, text: a.text, undo: !!a.undo, undone: !!a.undone }))));
+app.post('/api/audit/:id/undo', wrap(req => {
+  const a = db.audit.find(x => x.id === +req.params.id); need(a && a.undo, '这条不能撤销');
+  const u = a.undo;
+  if (u.kind === 'rules' || u.kind === 'shop') {
+    need(!db[u.kind].some(x => x.id === u.obj.id), '已经恢复过了');
+    db[u.kind].splice(Math.min(u.idx, db[u.kind].length), 0, u.obj);
+  } else if (u.kind === 'child') {
+    need(!child(u.child.id), '这个孩子已经在了');
+    db.children.splice(Math.min(u.idx, db.children.length), 0, u.child);
+    for (const k of CHILD_RECS) { db[k].push(...(u.recs[k] || [])); if (k !== 'checkins') db[k].sort((x, y) => (x.ts || 0) - (y.ts || 0)); }
+  } else if (u.kind === 'claim') {
+    const cl = db.claims.find(x => x.id === u.id); need(cl && cl.status === 'no', '申报状态变了');
+    cl.status = 'pending';
+  }
+  a.undone = true; a.undo = null;
+}));
+
+// ---------- 周报 / 月报 ----------
+const addDays = (d, n) => dstr(new Date(d + 'T12:00:00').getTime() + n * 864e5);
+function periodRange(type, off) {
+  if (type === 'month') {
+    const t = new Date(), x = new Date(t.getFullYear(), t.getMonth() + off, 1), m = `${x.getFullYear()}-${pad(x.getMonth() + 1)}`, n = new Date(x.getFullYear(), x.getMonth() + 1, 0).getDate();
+    return { from: m + '-01', to: `${m}-${pad(n)}`, label: `${x.getFullYear()}年${x.getMonth() + 1}月`, n };
+  }
+  const mon = addDays(monday(), off * 7);
+  return { from: mon, to: addDays(mon, 6), label: `${mon.slice(5)} ~ ${addDays(mon, 6).slice(5)}`, n: 7 };
+}
+function summ(cid, r) {
+  const inr = d => d >= r.from && d <= r.to, t0 = new Date(r.from + 'T12:00:00').getTime();
+  let gain = 0, loss = 0, rc = 0, rn = 0; const gr = {}, lr = {}, daily = Array(r.n).fill(0);
+  for (const l of db.logs) {
+    if (l.childId !== cid || !inr(l.d)) continue;
+    if (l.type === 'redeem') { rc += -l.delta; rn++; continue; }
+    const i = Math.round((new Date(l.d + 'T12:00:00').getTime() - t0) / 864e5); if (i >= 0 && i < r.n) daily[i] += l.delta;
+    if (l.delta > 0) { gain += l.delta; gr[l.reason] = (gr[l.reason] || 0) + l.delta; } else if (l.delta < 0) { loss += -l.delta; lr[l.reason] = (lr[l.reason] || 0) + -l.delta; }
+  }
+  const top = m => Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  return {
+    gain, loss, net: gain - loss, daily, topGain: top(gr), topLoss: top(lr), redeemN: rn, redeemCost: rc,
+    checkins: db.checkins.filter(x => x.childId === cid && inr(x.d)).length,
+    focusMin: db.focus.filter(x => x.childId === cid && inr(x.d)).reduce((a, x) => a + x.minutes, 0),
+    study: db.study.filter(x => x.childId === cid && inr(x.d)).length,
+  };
+}
+function reportText(c, type, off) {
+  const r = periodRange(type, off), s = summ(c.id, r), p = summ(c.id, periodRange(type, off - 1)), tn = type === 'month' ? '月' : '周';
+  return [`📊 ${c.name} ${type === 'month' ? '月报' : '周报'}(${r.label})`, `净得分 ${sg(s.net)}(加 ${s.gain} / 扣 ${s.loss}),较上${tn} ${sg(s.net - p.net)}`,
+    `打卡 ${s.checkins}/${r.n} 天 · 专注 ${s.focusMin} 分钟 · 学习记录 ${s.study} 条`,
+    s.topGain.length ? `最多加分:${s.topGain.map(([k, v]) => `${k} +${v}`).join('、')}` : '', s.topLoss.length ? `需要留意:${s.topLoss.map(([k, v]) => `${k} -${v}`).join('、')}` : '',
+    s.redeemN ? `兑换 ${s.redeemN} 次,花 ${s.redeemCost} 分` : '', `当前积分 ⭐ ${c.points || 0}`].filter(Boolean).join('\n');
+}
+app.get('/api/report', wrap(req => {
+  const c = child(req.query.childId); need(c, '孩子不存在');
+  const type = req.query.type === 'month' ? 'month' : 'week', off = Math.min(0, Math.trunc(+req.query.offset) || 0);
+  const r = periodRange(type, off);
+  return {
+    type, offset: off, range: r, name: c.name, points: c.points || 0, cur: summ(c.id, r), prev: summ(c.id, periodRange(type, off - 1)),
+    sibs: db.children.map(k => { const x = summ(k.id, r); return { id: k.id, name: k.name, net: x.net, gain: x.gain, loss: x.loss, checkins: x.checkins, focusMin: x.focusMin }; }),
+    text: reportText(c, type, off),
+  };
+}));
+// 每周日 20:00 把全家周报推到 ntfy
+setInterval(() => {
+  const n = new Date();
+  if (n.getDay() !== 0 || n.getHours() !== 20 || db.meta.weekPush === dstr() || !db.children.length) return;
+  db.meta.weekPush = dstr(); save();
+  if (db.settings.weeklyPush) notify('⭐ 星星屋本周周报', db.children.map(c => reportText(c, 'week', 0)).join('\n\n'), ['star']);
+}, 60000);
+
+// 通知测试
+app.post('/api/notify/test', async (req, res) => {
+  const r = await notify('⭐ 星星屋', '这是一条测试通知,收到就说明设置成功啦', ['tada']);
+  r.ok ? res.json({ ok: true }) : res.status(400).json({ error: r.err });
+});
 
 // 月度统计
 app.get('/api/stats', wrap(req => {
@@ -342,6 +519,14 @@ app.put('/api/settings', wrap(req => {
   const s = db.settings, b = req.body;
   if (b.checkinPoints != null) s.checkinPoints = Math.max(0, +b.checkinPoints | 0);
   if (b.focusPer10 != null) s.focusPer10 = Math.max(0, +b.focusPer10 | 0);
+  if (b.ntfyUrl != null) s.ntfyUrl = String(b.ntfyUrl).trim().slice(0, 200);
+  if (b.ntfyToken) s.ntfyToken = String(b.ntfyToken).trim().slice(0, 200); // 留空=不改
+  if (b.clearToken) s.ntfyToken = '';
+  if (b.weeklyPush != null) s.weeklyPush = truthy(b.weeklyPush);
+  if (b.streakRewards != null) {
+    const arr = Array.isArray(b.streakRewards) ? b.streakRewards : String(b.streakRewards).split(/[,，、;；\s]+/).filter(Boolean).map(x => { const [d, p] = x.split(/[:：]/); return { days: +d, points: +p }; });
+    s.streakRewards = arr.map(x => ({ days: Math.trunc(+x.days), points: Math.trunc(+x.points) })).filter(x => x.days >= 2 && x.days <= 365 && x.points > 0).sort((a, c) => a.days - c.days).slice(0, 10);
+  }
   for (const k of ['focusTasks', 'subjects', 'kinds']) if (Array.isArray(b[k])) s[k] = b[k].map(x => String(x).trim()).filter(Boolean).slice(0, 16);
   return s;
 }));
