@@ -8,7 +8,7 @@
 html, body { margin: 0; height: 100%; }
 body {
   font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif; color: var(--ink);
-  background: radial-gradient(circle at 90% -5%, #e8dcff 0, transparent 40%), radial-gradient(circle at -5% 30%, #ffe1ef 0, transparent 38%), var(--bg);
+  background: radial-gradient(circle 300px at 92% 320px, #e8dcff 0, transparent 100%), radial-gradient(circle at -5% 30%, #ffe1ef 0, transparent 38%), var(--bg);
   background-attachment: fixed;
 }
 button { font: inherit; border: 0; cursor: pointer; color: inherit; }
