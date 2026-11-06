@@ -217,6 +217,20 @@ app.post('/api/score', wrap(req => {
   return { points: kids[0].points };
 }));
 
+// 外部系统(如 StudyOnTV 电视答题)加分:extId 幂等,同一个 extId 重复提交不会重复加分
+app.post('/api/ext/score', wrap(req => {
+  const c = child(req.body.childId); need(c, '孩子不存在');
+  const delta = Math.trunc(+req.body.delta); need(delta, '分数不对');
+  const extId = String(req.body.extId || '').slice(0, 80); need(extId, '缺少 extId');
+  const old = db.logs.find(l => l.ext === extId);
+  if (old) return { points: c.points || 0, dup: true, logId: old.id };
+  const l = addLog(c, delta, String(req.body.reason || '外部加分').slice(0, 40), 'ext');
+  l.ext = extId; l.by = String(req.body.source || 'ext').slice(0, 20);
+  return { points: c.points || 0, logId: l.id };
+}));
+// 外部系统读取孩子列表与当前积分
+app.get('/api/ext/children', wrap(() => db.children.map(c => ({ id: c.id, name: c.name, points: c.points || 0 }))));
+
 // 兑换(库存 / 每周限兑)
 app.post('/api/redeem', wrap(req => {
   const c = child(req.body.childId); need(c, '孩子不存在');

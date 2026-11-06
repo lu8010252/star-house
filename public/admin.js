@@ -147,7 +147,7 @@ async function logs() {
     <div class="bar"><select id="mrule"><option value="">自选分数</option>${rs.map(r => `<option value="${r.id}">${r.type === 'bad' ? '-' : '+'}${r.points} ${esc(r.icon || '')}${esc(r.name)}</option>`).join('')}</select><input id="md" type="number" placeholder="分数(扣分填负数)" style="width:150px"><input id="mr" placeholder="原因"><button class="b" data-a="manual">提交</button></div></div>
    <div class="box"><h3>积分记录</h3><div class="bar">${kidSel()}<input type="date" data-lf="from" value="${f.from}"><small>至</small><input type="date" data-lf="to" value="${f.to}">
      <select data-lf="kind">${[['', '全部'], ['gain', '只看加分'], ['loss', '只看扣分'], ['redeem', '只看兑换']].map(opt).join('')}</select><small>共 ${l.length} 条 · 净得分 <b class="${sum >= 0 ? 'p' : 'n'}">${sign(sum)}</b></small></div>
-    <table>${l.map(x => `<tr><td>${fmtTime(x.ts)}</td><td>${esc(x.reason)} <small title="${x.by === 'app' ? '手机前台' : x.by === 'admin' ? '家长后台' : ''}">${x.by === 'app' ? '📱' : x.by === 'admin' ? '💻' : ''}</small></td><td class="${x.delta >= 0 ? 'p' : 'n'}">${x.delta ? sign(x.delta) : '-'}</td><td><button class="b g" data-a="undo" data-id="${x.id}">撤销</button></td></tr>`).join('') || '<tr><td>暂无</td></tr>'}</table></div>`;
+    <table>${l.map(x => `<tr><td>${fmtTime(x.ts)}</td><td>${esc(x.reason)} <small title="${x.by === 'app' ? '手机前台' : x.by === 'admin' ? '家长后台' : x.by === 'studyontv' ? '电视答题' : ''}">${x.by === 'app' ? '📱' : x.by === 'admin' ? '💻' : x.by === 'studyontv' ? '📺' : ''}</small></td><td class="${x.delta >= 0 ? 'p' : 'n'}">${x.delta ? sign(x.delta) : '-'}</td><td><button class="b g" data-a="undo" data-id="${x.id}">撤销</button></td></tr>`).join('') || '<tr><td>暂无</td></tr>'}</table></div>`;
 }
 
 // ---- 学习记录 ----
